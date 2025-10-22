@@ -29,7 +29,7 @@ bool DEBUG = false;
 
 int32_t WINDOW_WIDTH = 1024;
 int32_t WINDOW_HEIGHT = 1024;
-const float CAMERA_FOV = glm::radians(90.0f);
+const float CAMERA_FOV = glm::radians(60.0f);
 float CAMERA_ASPECT_RATIO = static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
 
 // Just for the sake of clarity;
@@ -199,6 +199,12 @@ public:
 	for (GPUMesh& mesh : butterfly_body_meshes)
 	{
 	    m_defaultShader.bind();
+	    // Light properties
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightPos"), 1, GL_FALSE, glm::value_ptr(li.getPos()));
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightDir"), 1, GL_FALSE, glm::value_ptr(li.getFor()));
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightCol"), 1, GL_FALSE, glm::value_ptr(li.getCol()));
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
+
 	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
 	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
 	    //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
@@ -222,6 +228,12 @@ public:
 	for (GPUMesh& mesh : butterfly_wing_meshes)
 	{
 	    m_defaultShader.bind();
+	    // Light properties
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightPos"), 1, GL_FALSE, glm::value_ptr(li.getPos()));
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightDir"), 1, GL_FALSE, glm::value_ptr(li.getFor()));
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightCol"), 1, GL_FALSE, glm::value_ptr(li.getCol()));
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
+	    
 	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
 	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
 	    //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
@@ -421,18 +433,19 @@ int main()
 {
     // --- SET CAMERAS
     // Position and Forward for the first camera
-    glm::vec3 pos0  = {12.0f, 3.0f, 0.0f};
-    glm::vec3 for0  = {-1.0f, 0.0f, 0.0f};
+    glm::vec3 pos0  = {9.84f, 2.75f, -10.66f};
+    glm::vec3 for0  = {-0.67f, 0.10f, 0.73f};
     
     // Position and Forward for the second camera
-    glm::vec3 pos1  = {-5.0f, 5.0f, -6.0f};
+    glm::vec3 pos1  = {-9.15f, 6.21f, -10.1f};
     glm::vec3 for1 = {0.75f, -0.2f, 0.6f};
 
     // --- SET LIGHTS
     // Position and Forward for the first light
+    glm::vec3 colL0 = {0.2f, 0.5f, 1.0f};
     glm::vec3 posL0 = {2.0f, 2.0f, 2.0f};
     glm::vec3 forL0 = {-1.0f, -1.0f, -1.0f};
-    Light li = Light(posL0);
+    Light li = Light(colL0, posL0);
 
     // --- Create the app
     Application app;

@@ -76,9 +76,9 @@ void Camera::updateInput()
             m_position += moveSpeed * m_forward;
         if (m_pWindow->isKeyPressed(GLFW_KEY_S))
             m_position -= moveSpeed * m_forward;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_SPACE))
+        if (m_pWindow->isKeyPressed(GLFW_KEY_UP))
             m_position += moveSpeed * m_up;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_C))
+        if (m_pWindow->isKeyPressed(GLFW_KEY_DOWN))
             m_position -= moveSpeed * m_up;
 
         const glm::dvec2 cursorPos = m_pWindow->getCursorPos();

@@ -1,6 +1,7 @@
 //#include "Image.h"
-#include "mesh.h"
-#include "texture.h"
+#include "render/mesh.h"
+#include "render/texture.h"
+#include "ui/camera.h"
 // Always include window first (because it includes glfw, which includes GL which needs to be included AFTER glew).
 // Can't wait for modules to fix this stuff...
 #include <framework/disable_all_warnings.h>
@@ -21,10 +22,20 @@ DISABLE_WARNINGS_POP()
 #include <iostream>
 #include <vector>
 
+int32_t WINDOW_WIDTH = 1024;
+int32_t WINDOW_HEIGHT = 1024;
+const float CAMERA_FOV = glm::radians(90.0f);
+float CAMERA_ASPECT_RATIO = static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
+
+// Just for the sake of clarity, define 
+// the contents of an object file (list of meshes)
+// as what it is;
+using ObjectFile = std::vector<GPUMesh>;
+
 class Application {
 public:
     Application()
-        : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41)
+        : m_window("Final Project", glm::ivec2(WINDOW_WIDTH, WINDOW_HEIGHT), OpenGLVersion::GL41)
         , m_texture(RESOURCE_ROOT "resources/checkerboard.png")
     {
         m_window.registerKeyCallback([this](int key, int scancode, int action, int mods) {
@@ -41,7 +52,9 @@ public:
                 onMouseReleased(button, mods);
         });
 
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/butterfly-body.obj");
+	// Initialize the meshes
+	butterfly_body_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/butterfly-body.obj");
+	butterfly_wing_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/butterfly-wings.obj");
 
         try {
             ShaderBuilder defaultBuilder;
@@ -64,20 +77,81 @@ public:
         }
     }
 
+    void setMainCamera(glm::vec3& position, glm::vec3& forward)
+    { // Add a camera
+	mainCamera = Camera(&m_window, position, forward);
+	mainCamera.setUserInteraction(true);
+    }
+
+    void imgui()
+    { // Section for user interface!
+	int dummyInteger = 0; // Initialized to 0
+	// Use ImGui for easy input/output of ints, floats, strings, etc...
+	ImGui::Begin("Window");
+	ImGui::InputInt("This is an integer input", &dummyInteger); // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
+	ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
+	ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+	ImGui::End();
+    }
+
+    void render_butterfly(glm::mat3 normalModelMatrix, glm::mat4 mvpMatrix)
+    { // Function to render our butterfly
+	// --- BUTTERFLY BODY MESHES
+	for (GPUMesh& mesh : butterfly_body_meshes)
+	{
+	    m_defaultShader.bind();
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
+	    //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
+	    if (mesh.hasTextureCoords()) 
+	    {
+		m_texture.bind(GL_TEXTURE0);
+		glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+		glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+	    }
+	    else 
+	    {
+		glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+	    }
+	    mesh.draw(m_defaultShader);
+	}
+
+	// --- BUTTERFLY WINGS MESHES
+	for (GPUMesh& mesh : butterfly_wing_meshes)
+	{
+	    m_defaultShader.bind();
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
+	    //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
+	    if (mesh.hasTextureCoords()) 
+	    {
+		m_texture.bind(GL_TEXTURE0);
+		glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+		glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+	    }
+	    else 
+	    {
+		glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+	    }
+	    mesh.draw(m_defaultShader);
+	}
+    }
+
     void update()
     {
-        int dummyInteger = 0; // Initialized to 0
         while (!m_window.shouldClose()) {
             // This is your game loop
             // Put your real-time logic and rendering in here
             m_window.updateInput();
 
-            // Use ImGui for easy input/output of ints, floats, strings, etc...
-            ImGui::Begin("Window");
-            ImGui::InputInt("This is an integer input", &dummyInteger); // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
-            ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
-            ImGui::Checkbox("Use material if no texture", &m_useMaterial);
-            ImGui::End();
+	    // Interact with the imgui
+	    imgui();
 
             // Clear the screen
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
@@ -86,28 +160,21 @@ public:
             // ...
             glEnable(GL_DEPTH_TEST);
 
-            const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
+	    // Calculate view-projection matrix setup
+	    // for the main camera
+	    const glm::mat4 m_projection = glm::perspective(CAMERA_FOV, CAMERA_ASPECT_RATIO, 0.1f, 30.0f);
+	    const glm::mat4 mvpMatrix = m_projection * mainCamera.viewMatrix();
+
+            //const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
 
-            for (GPUMesh& mesh : m_meshes) {
-                m_defaultShader.bind();
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-                //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-                //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
-                glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
-                if (mesh.hasTextureCoords()) {
-                    m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
-                } else {
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
-                }
-                mesh.draw(m_defaultShader);
-            }
+	    // --- Rendering section!
+	    render_butterfly(normalModelMatrix, mvpMatrix);
+
+	    // --- Update the main camera input
+	    mainCamera.updateInput();
 
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
@@ -159,7 +226,13 @@ private:
     Shader m_defaultShader;
     Shader m_shadowShader;
 
-    std::vector<GPUMesh> m_meshes;
+    // --- Meshes of an object file!
+    ObjectFile butterfly_body_meshes;
+    ObjectFile butterfly_wing_meshes;
+
+    // --- All the cameras!
+    Camera mainCamera;
+
     Texture m_texture;
     bool m_useMaterial { true };
 
@@ -171,7 +244,12 @@ private:
 
 int main()
 {
+
+    glm::vec3 START_POSITION  = {12.0f, 3.0f, 0.0f};
+    glm::vec3 LOOK_POSITION  = {-1.0f, 0.0f, 0.0f};
+
     Application app;
+    app.setMainCamera(START_POSITION, LOOK_POSITION);
     app.update();
 
     return 0;

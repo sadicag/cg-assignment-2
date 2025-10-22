@@ -1,0 +1,7 @@
+#Exlude every directory written here
+assignment_2/.vs/
+assignment_2\.vs\
+assignment_2/build/
+assignment_2\build\
+assignment_2/run.sh
+assignment_2\run.sh

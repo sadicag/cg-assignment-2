@@ -22,14 +22,18 @@ DISABLE_WARNINGS_POP()
 #include <iostream>
 #include <vector>
 
+// 1 if DEBUG
+// 0 if NOT DEBUG
+#define DEBUG 0
+
 int32_t WINDOW_WIDTH = 1024;
 int32_t WINDOW_HEIGHT = 1024;
 const float CAMERA_FOV = glm::radians(90.0f);
 float CAMERA_ASPECT_RATIO = static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
 
-// Just for the sake of clarity, define 
-// the contents of an object file (list of meshes)
-// as what it is;
+// Just for the sake of clarity;
+// Define the contents of an object 
+// file (list of meshes) as what it is;
 using ObjectFile = std::vector<GPUMesh>;
 
 class Application {
@@ -75,12 +79,33 @@ public:
         } catch (ShaderLoadingException e) {
             std::cerr << e.what() << std::endl;
         }
+
     }
 
-    void setMainCamera(glm::vec3& position, glm::vec3& forward)
-    { // Add a camera
-	mainCamera = Camera(&m_window, position, forward);
-	mainCamera.setUserInteraction(true);
+    void initCamera(glm::vec3& position, glm::vec3& forward, bool isInteractive)
+    { // Initialize the camera
+	// Create new camera
+	Camera c = Camera(&m_window, position, forward);
+	// Initialize the active camera index to be zero
+	camera_idx = 0;
+	c.setUserInteraction(isInteractive);
+	// Add camera to the list of cameras
+	cameras.push_back(c);
+    }
+
+    void addCamera(glm::vec3& position, glm::vec3& forward, bool isInteractive)
+    { // Add a new camera
+	Camera c = Camera(&m_window, position, forward);
+	c.setUserInteraction(isInteractive);
+	cameras.push_back(c);
+    }
+
+    void changeCamera(uint32_t idx)
+    { // Change the camera used to the idx!
+	if (idx < cameras.size())
+	{
+	    camera_idx = idx;
+	}
     }
 
     void imgui()
@@ -163,7 +188,7 @@ public:
 	    // Calculate view-projection matrix setup
 	    // for the main camera
 	    const glm::mat4 m_projection = glm::perspective(CAMERA_FOV, CAMERA_ASPECT_RATIO, 0.1f, 30.0f);
-	    const glm::mat4 mvpMatrix = m_projection * mainCamera.viewMatrix();
+	    const glm::mat4 mvpMatrix = m_projection * (cameras[camera_idx]).viewMatrix();
 
             //const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
@@ -174,8 +199,24 @@ public:
 	    render_butterfly(normalModelMatrix, mvpMatrix);
 
 	    // --- Update the main camera input
-	    mainCamera.updateInput();
+	    (cameras[camera_idx]).updateInput();
 
+	    if (DEBUG)
+	    {
+		std::cout << "Position x: ";
+		std::cout << cameras[camera_idx].cameraPos().x << " y:";
+		std::cout << cameras[camera_idx].cameraPos().y << " z:";
+		std::cout << cameras[camera_idx].cameraPos().z;
+		std::cout << std::endl;
+
+		cameras[camera_idx].updateInput();
+		std::cout << "Forward x: ";
+		std::cout << cameras[camera_idx].cameraFor().x << " y:";
+		std::cout << cameras[camera_idx].cameraFor().y << " z:";
+		std::cout << cameras[camera_idx].cameraFor().z;
+		std::cout << std::endl;
+	    }
+		
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
         }
@@ -194,6 +235,19 @@ public:
     // mods - Any modifier keys pressed, like shift or control
     void onKeyReleased(int key, int mods)
     {
+
+	// Change camera to index 1
+	if (key == GLFW_KEY_1)
+	    changeCamera(0);
+
+	// Change camera to index 2
+	if (key == GLFW_KEY_2)
+	    changeCamera(1);
+
+	// Change camera to index 3
+	if (key == GLFW_KEY_3)
+	    changeCamera(2);
+
         std::cout << "Key released: " << key << std::endl;
     }
 
@@ -231,7 +285,8 @@ private:
     ObjectFile butterfly_wing_meshes;
 
     // --- All the cameras!
-    Camera mainCamera;
+    std::vector<Camera> cameras;
+    uint32_t camera_idx;
 
     Texture m_texture;
     bool m_useMaterial { true };
@@ -245,11 +300,20 @@ private:
 int main()
 {
 
-    glm::vec3 START_POSITION  = {12.0f, 3.0f, 0.0f};
-    glm::vec3 LOOK_POSITION  = {-1.0f, 0.0f, 0.0f};
+    // Position and Forward for the third camera
+    glm::vec3 pos0  = {12.0f, 3.0f, 0.0f};
+    glm::vec3 for0  = {-1.0f, 0.0f, 0.0f};
+    
+    // Position and Forward for the second camera
+    glm::vec3 pos1  = {-5.0f, 5.0f, -6.0f};
+    glm::vec3 for1 = {0.75f, -0.2f, 0.6f};
 
+    // --- Create the app
     Application app;
-    app.setMainCamera(START_POSITION, LOOK_POSITION);
+    app.initCamera(pos0, for0, false);
+
+    app.addCamera(pos1, for1, true);
+
     app.update();
 
     return 0;

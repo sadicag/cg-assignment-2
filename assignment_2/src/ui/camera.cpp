@@ -34,6 +34,11 @@ glm::vec3 Camera::cameraPos() const
     return m_position;
 }
 
+glm::vec3 Camera::cameraFor() const
+{
+    return m_forward;
+}
+
 glm::mat4 Camera::viewMatrix() const
 {
     return glm::lookAt(m_position, m_position + m_forward, m_up);

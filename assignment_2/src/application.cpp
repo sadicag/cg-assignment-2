@@ -227,7 +227,11 @@ public:
 	}
 
 	// --- RENDER BUTTERFLY WINGS MESHES
-    
+
+    glm::mat4 leftWingMvpMatrix = glm::rotate(mvpMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));   
+    glm::mat4 leftWingModelMatrix = glm::rotate(m_modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));  
+    glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
+
 	for (GPUMesh& mesh : butterfly_wing_meshes)
 	{
 	    m_defaultShader.bind();
@@ -238,10 +242,10 @@ public:
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
 	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
 	    
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingMvpMatrix));
 	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingModelMatrix));
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingNormalMatrix));
 	    if (mesh.hasTextureCoords()) 
 	    {
 		m_texture.bind(GL_TEXTURE0);
@@ -257,12 +261,10 @@ public:
 	    mesh.draw(m_defaultShader);
 	}
     
-    glm::mat4 rightWingMvpMatrix = glm::translate(glm::rotate(mvpMatrix, glm::radians(101.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));   //for the second wing
-    glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(101.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));  //for the second wing
-    //glm::mat4 rightWingModelMatrix = m_modelMatrix; I m not sure if i need the "rightWingModelMatrix" line just above, this is for testing
-
+    glm::mat4 rightWingMvpMatrix = glm::translate(glm::rotate(mvpMatrix, glm::radians(104.0f) - m_flapAngle , glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));   //for the second wing
+    glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));  //for the second wing
     glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
-
+    
     for (GPUMesh& mesh : butterfly_wing_meshes)
     {
         m_defaultShader.bind(); 
@@ -292,9 +294,7 @@ public:
             glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
         }
         mesh.draw(m_defaultShader);
-    }
-    
-
+    }  
     }
 
     void startLoop()
@@ -306,6 +306,11 @@ public:
 
 	    // Interact with the imgui
 	    imgui();
+
+        float time = (float)glfwGetTime();
+        float flapSpeed = 10.0f;
+        float flapAmplitude = glm::radians(45.0f);
+        m_flapAngle = flapAmplitude * (sin(time * flapSpeed) - 0.4f * sin(time * flapSpeed * 2.0f));
 
             // Clear the screen
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
@@ -470,6 +475,8 @@ private:
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_modelMatrix { 1.0f };
+
+    float m_flapAngle{ 0.0f }; //to make the wings flap!!
 };
 
 int main()

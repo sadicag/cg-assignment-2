@@ -199,15 +199,16 @@ public:
 	for (GPUMesh& mesh : butterfly_body_meshes)
 	{
 	    m_defaultShader.bind();
+
 	    // Light properties
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightPos"), 1, GL_FALSE, glm::value_ptr(li.getPos()));
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightDir"), 1, GL_FALSE, glm::value_ptr(li.getFor()));
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightCol"), 1, GL_FALSE, glm::value_ptr(li.getCol()));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
 	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
 
 	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
 	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-	    //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
 	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
 	    if (mesh.hasTextureCoords()) 
 	    {
@@ -228,15 +229,16 @@ public:
 	for (GPUMesh& mesh : butterfly_wing_meshes)
 	{
 	    m_defaultShader.bind();
+
 	    // Light properties
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightPos"), 1, GL_FALSE, glm::value_ptr(li.getPos()));
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightDir"), 1, GL_FALSE, glm::value_ptr(li.getFor()));
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("lightCol"), 1, GL_FALSE, glm::value_ptr(li.getCol()));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
 	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
 	    
 	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
 	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-	    //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
 	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
 	    if (mesh.hasTextureCoords()) 
 	    {
@@ -442,9 +444,9 @@ int main()
 
     // --- SET LIGHTS
     // Position and Forward for the first light
-    glm::vec3 colL0 = {0.2f, 0.5f, 1.0f};
-    glm::vec3 posL0 = {2.0f, 2.0f, 2.0f};
-    glm::vec3 forL0 = {-1.0f, -1.0f, -1.0f};
+    glm::vec3 colL0 = {1.0f, 1.0f, 1.0f};
+    glm::vec3 posL0 = {0.0f, 0.8f, 0.0f};
+    //glm::vec3 forL0 = {-1.0f, -1.0f, -1.0f};
     Light li = Light(colL0, posL0);
 
     // --- Create the app

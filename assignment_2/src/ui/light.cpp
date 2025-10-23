@@ -8,18 +8,20 @@ DISABLE_WARNINGS_POP()
 #include <framework/window.h>
 
 // Define the contents of a light source!
-Light::Light(glm::vec3 position, glm::vec3 forward)
+Light::Light(glm::vec3 color, glm::vec3 position, glm::vec3 forward)
 { // Initialize light source (NOT SPOTLIGHT)
     m_isSpotlight = false;
     m_position = position;
     m_forward = forward;
+    m_color = color;
 }
 
-Light::Light(glm::vec3 position)
+Light::Light(glm::vec3 color, glm::vec3 position)
 { // Initialize light source (SPOTLIGHT)
     m_isSpotlight = true;
     m_position = position;
     m_forward = glm::vec3(-1);
+    m_color = color;
 }
 
 glm::vec3 Light::getPos()
@@ -30,6 +32,11 @@ glm::vec3 Light::getPos()
 glm::vec3 Light::getFor()
 { // Get Light Forward
     return m_forward;
+}
+
+glm::vec3 Light::getCol()
+{ // Get Light Color
+    return m_color;
 }
 
 bool Light::isSpot()

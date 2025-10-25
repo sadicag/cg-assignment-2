@@ -179,6 +179,10 @@ public:
     void render_butterfly(glm::mat3 normalModelMatrix, glm::mat4 mvpMatrix, Light li)
     { // Function to render our butterfly for the current light
         //mvpMatrix = glm::scale(mvpMatrix, glm::vec3(0.4, 0.4, 0.4));       to control the size of the butterfly
+    m_defaultShader.bind();
+    glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
+    glUniform1f(m_defaultShader.getUniformLocation("metallic"), 0.2f);
+    glUniform1f(m_defaultShader.getUniformLocation("roughness"), 0.5f);
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢔⣶⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠗⡿⣾⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡼⠓⡞⢩⣯⡀⠀
@@ -228,8 +232,14 @@ public:
 
 	// --- RENDER BUTTERFLY WINGS MESHES
 
+    /*
     glm::mat4 leftWingMvpMatrix = glm::rotate(mvpMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));   
     glm::mat4 leftWingModelMatrix = glm::rotate(m_modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));  
+    glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
+    */
+    
+    glm::mat4 leftWingModelMatrix = glm::rotate(m_modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+    glm::mat4 leftWingMvpMatrix = mvpMatrix * leftWingModelMatrix; 
     glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
 
 	for (GPUMesh& mesh : butterfly_wing_meshes)
@@ -261,8 +271,14 @@ public:
 	    mesh.draw(m_defaultShader);
 	}
     
+    /*
     glm::mat4 rightWingMvpMatrix = glm::translate(glm::rotate(mvpMatrix, glm::radians(104.0f) - m_flapAngle , glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));   //for the second wing
     glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));  //for the second wing
+    glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
+    */
+
+    glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),glm::vec3(0.3f, 0.1f, 0.0f));
+    glm::mat4 rightWingMvpMatrix = mvpMatrix * rightWingModelMatrix;
     glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
     
     for (GPUMesh& mesh : butterfly_wing_meshes)

@@ -179,10 +179,10 @@ public:
     void render_butterfly(glm::mat3 normalModelMatrix, glm::mat4 mvpMatrix, Light li)
     { // Function to render our butterfly for the current light
         //mvpMatrix = glm::scale(mvpMatrix, glm::vec3(0.4, 0.4, 0.4));       to control the size of the butterfly
-    m_defaultShader.bind();
-    glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
-    glUniform1f(m_defaultShader.getUniformLocation("metallic"), 0.2f);
-    glUniform1f(m_defaultShader.getUniformLocation("roughness"), 0.5f);
+	m_defaultShader.bind();
+	glUniform3fv(m_defaultShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
+	glUniform1f(m_defaultShader.getUniformLocation("metallic"), 0.2f);
+	glUniform1f(m_defaultShader.getUniformLocation("roughness"), 0.5f);
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢔⣶⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠗⡿⣾⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡼⠓⡞⢩⣯⡀⠀
@@ -232,15 +232,15 @@ public:
 
 	// --- RENDER BUTTERFLY WINGS MESHES
 
-    /*
-    glm::mat4 leftWingMvpMatrix = glm::rotate(mvpMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));   
-    glm::mat4 leftWingModelMatrix = glm::rotate(m_modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));  
-    glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
-    */
-    
-    glm::mat4 leftWingModelMatrix = glm::rotate(m_modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
-    glm::mat4 leftWingMvpMatrix = mvpMatrix * leftWingModelMatrix; 
-    glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
+	/*
+	glm::mat4 leftWingMvpMatrix = glm::rotate(mvpMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));   
+	glm::mat4 leftWingModelMatrix = glm::rotate(m_modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));  
+	glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
+	*/
+	
+	glm::mat4 leftWingModelMatrix = glm::rotate(m_modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::mat4 leftWingMvpMatrix = mvpMatrix * leftWingModelMatrix; 
+	glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
 
 	for (GPUMesh& mesh : butterfly_wing_meshes)
 	{
@@ -271,46 +271,46 @@ public:
 	    mesh.draw(m_defaultShader);
 	}
     
-    /*
-    glm::mat4 rightWingMvpMatrix = glm::translate(glm::rotate(mvpMatrix, glm::radians(104.0f) - m_flapAngle , glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));   //for the second wing
-    glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));  //for the second wing
-    glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
-    */
+	/*
+	glm::mat4 rightWingMvpMatrix = glm::translate(glm::rotate(mvpMatrix, glm::radians(104.0f) - m_flapAngle , glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));   //for the second wing
+	glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.3f, 0.1f, 0.0f));  //for the second wing
+	glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
+	*/
 
-    glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),glm::vec3(0.3f, 0.1f, 0.0f));
-    glm::mat4 rightWingMvpMatrix = mvpMatrix * rightWingModelMatrix;
-    glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
-    
-    for (GPUMesh& mesh : butterfly_wing_meshes)
-    {
-        m_defaultShader.bind(); 
+	glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),glm::vec3(0.3f, 0.1f, 0.0f));
+	glm::mat4 rightWingMvpMatrix = mvpMatrix * rightWingModelMatrix;
+	glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
+	
+	for (GPUMesh& mesh : butterfly_wing_meshes)
+	{
+	    m_defaultShader.bind(); 
 
-        // Light properties
-        glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
-        glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
-        glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
-        glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
+	    // Light properties
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
 
 
-        // Send NEW matrices for the second wing
-        glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingMvpMatrix)); 
-        glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingModelMatrix)); 
-        glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingNormalMatrix)); 
+	    // Send NEW matrices for the second wing
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingMvpMatrix)); 
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingModelMatrix)); 
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingNormalMatrix)); 
 
-        if (mesh.hasTextureCoords())
-        {
-            m_texture.bind(GL_TEXTURE0);
-            glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-            glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-            glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
-        }
-        else
-        {
-            glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-            glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
-        }
-        mesh.draw(m_defaultShader);
-    }  
+	    if (mesh.hasTextureCoords())
+	    {
+		m_texture.bind(GL_TEXTURE0);
+		glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+		glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+	    }
+	    else
+	    {
+		glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+	    }
+	    mesh.draw(m_defaultShader);
+	}  
     }
 
     void startLoop()
@@ -323,10 +323,10 @@ public:
 	    // Interact with the imgui
 	    imgui();
 
-        float time = (float)glfwGetTime();
-        float flapSpeed = 10.0f;
-        float flapAmplitude = glm::radians(45.0f);
-        m_flapAngle = flapAmplitude * (sin(time * flapSpeed) - 0.4f * sin(time * flapSpeed * 2.0f));
+	    float time = (float)glfwGetTime();
+	    float flapSpeed = 10.0f;
+	    float flapAmplitude = glm::radians(45.0f);
+	    m_flapAngle = flapAmplitude * (sin(time * flapSpeed) - 0.4f * sin(time * flapSpeed * 2.0f));
 
             // Clear the screen
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f);

@@ -8,9 +8,11 @@ layout(std140) uniform Material // Must match the GPUMaterial defined in src/mes
 	float transparency;
 };
 
+uniform int useMaterial;
 uniform sampler2D colorMap;
-uniform bool hasTexCoords;
-uniform bool useMaterial;
+
+// Butterfly texture properties
+uniform sampler2D textureMap;
 
 // Light properties
 uniform vec3 lightPosition; // Position
@@ -18,7 +20,7 @@ uniform vec3 lightDirection_optional; // Direction
 uniform vec3 lightColor; // Colour
 uniform int isSpot; // Is spotlight? :0
 
-in vec3 fragPosition;
+in vec3 fragPosition; 
 in vec3 fragNormal;
 in vec2 fragTexCoord;
 
@@ -31,49 +33,31 @@ layout(location = 0) out vec4 fragColor;
 
 void main()
 {
+    if (useMaterial == 0)
+    { // Don't use material
+	fragColor = vec4(fragNormal, 1.0f);
+	return;
+    }
+
     vec3 normal = normalize(fragNormal);
     vec3 N = normal;
-    
-    //these ones i just added
-    vec3 V = normalize(cameraPosition - fragPosition);   
-    vec3 L = normalize(lightPosition - fragPosition);    
-    vec3 H = normalize(V + L);                         
 
     // --- Set the light direction vector
-    vec3 lightDirection = lightDirection_optional;
+    vec3 L = lightDirection_optional;
     if (isSpot == 1)
     { // don't use the direction vector
-	lightDirection = normalize(lightPosition - fragPosition);
+	L = normalize(lightPosition - fragPosition);
     }
 
-    /*
-    // --- Set the final output
-    vec3 finalOut;
-    if (hasTexCoords)
-    { 
-	finalOut = texture(colorMap, fragTexCoord).rgb;
-    }
-    else if (useMaterial)
-    { 
-	// Basic Lambertian Diffusion
-	vec3 diffusion = kd * max(dot(fragNormal, lightDirection), 0.1);
-	finalOut = lightColor * diffusion;
-    }
-    else               
-    { 
-	// Output color value, change from (1, 0, 0) to something else
-	finalOut = normal;
-    }
-    
-    fragColor = vec4(finalOut, 1.0);
-    */
-  
+    //these ones i just added
+    vec3 V = normalize(cameraPosition - fragPosition);   
+    vec3 H = normalize(V + L);                         
+
     // all this is for Cook Torrange PBR
     float NdotL = max(dot(N, L), 0.0);
     float NdotV = max(dot(N, V), 0.0);
     float NdotH = max(dot(N, H), 0.0);
     float VdotH = max(dot(V, H), 0.0);
-
 
     vec3 F0 = mix(vec3(0.04), kd, metallic);
     vec3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
@@ -92,13 +76,16 @@ void main()
     float denominator = 4.0 * NdotV * NdotL + 0.001;
     vec3 specular = numerator / denominator;
 
-
     vec3 kS = F;                 
     vec3 kD = vec3(1.0) - kS;   
     kD *= 1.0 - metallic;       
 
     vec3 irradiance = lightColor * NdotL;
     vec3 diffuse = kD * kd / 3.14159265;
-    vec3 finalColor = (diffuse + specular) * irradiance;
+
+    // Tile the texture to repeat!
+    vec3 textureColor = texture(textureMap, fragTexCoord).rgb;
+
+    vec3 finalColor = textureColor * (diffuse + specular) * irradiance;
     fragColor = vec4(finalColor, 1.0);
 }

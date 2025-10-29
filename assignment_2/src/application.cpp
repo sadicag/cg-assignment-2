@@ -31,7 +31,7 @@ int32_t WINDOW_WIDTH = 1024;
 int32_t WINDOW_HEIGHT = 1024;
 const float CAMERA_FOV = glm::radians(60.0f);
 float CAMERA_ASPECT_RATIO = static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
-float DISTANCE_CLIPPING = 200.0f;
+float DISTANCE_CLIPPING = 1000.0f;
 
 // Just for the sake of clarity;
 // Define the contents of an object 
@@ -44,6 +44,7 @@ public:
         : m_window("Final Project", glm::ivec2(WINDOW_WIDTH, WINDOW_HEIGHT), OpenGLVersion::GL41)
         , m_texture(RESOURCE_ROOT "resources/checkerboard.png")
         , m_butterfly_texture(RESOURCE_ROOT "resources/wing-texture.png")
+        , m_butterfly_texture0(RESOURCE_ROOT "resources/wing-texture0.png")
         , m_butterfly_body_texture(RESOURCE_ROOT "resources/body-texture.png")
     { // Initialize the application
         m_window.registerKeyCallback([this](int key, int scancode, int action, int mods) {
@@ -182,15 +183,61 @@ public:
 	ImGui::End();
     }
 
-    void render_butterfly(glm::mat3 normalModelMatrix, glm::mat4 mvpMatrix, Light li)
+    glm::mat4 update_butterflyMatrix(
+	    glm::mat4 butterflyMatrix, 
+	    glm::vec3 centerOffset, 
+	    bool clockWise
+    )
+    { // Function to update the butterfly movement
+	
+	float angle = clockWise ? -m_flightAngle : m_flightAngle;
+
+	float new_x = sin(angle) * m_flightRadius;
+	float new_z = cos(angle) * m_flightRadius;
+	float new_y = sin(angle * 2.0f) * m_swayAmplitude; // amplitude ~ 0.2f–0.5f
+
+	// Compute translation matrix
+	glm::mat4 translateMatrix = glm::translate(
+	    glm::mat4(1.0f),
+	    glm::vec3(new_x, new_y, new_z) + centerOffset
+	);
+
+	// Compute direction (tangent to flight circle)
+	glm::vec3 direction = glm::normalize(glm::vec3(-cos(angle), 0.0f, sin(angle)));
+
+	// Compute right and up vectors
+	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+	glm::vec3 right = glm::normalize(glm::cross(up, direction));
+	up = glm::cross(direction, right);
+
+	// Build rotation matrix so butterfly faces flight direction
+	glm::mat4 rotationMatrix(1.0f);
+	rotationMatrix[0] = glm::vec4(right, 0.0f);
+	rotationMatrix[1] = glm::vec4(up, 0.0f);
+	rotationMatrix[2] = glm::vec4(direction, 0.0f);
+
+	// Combine translation and rotation
+	return (translateMatrix * rotationMatrix);
+    }
+
+    void render_butterfly(
+	    glm::mat3 normalModelMatrix, 
+	    glm::mat4 mvpMatrix, 
+	    Light li, 
+	    glm::mat4 butterflyMatrix,
+	    bool isBlue
+    )
     { // Function to render our butterfly for the current light
-        //mvpMatrix = glm::scale(mvpMatrix, glm::vec3(0.4, 0.4, 0.4));       to control the size of the butterfly
+
+	// --- Butterfly Body Calculation
+	glm::mat4 bodyModelMatrix = butterflyMatrix;
+	glm::mat4 bodyMvpMatrix = mvpMatrix * bodyModelMatrix; 
+	glm::mat3 bodyNormalMatrix = glm::inverseTranspose(glm::mat3(bodyModelMatrix));
+
 	m_defaultShader.bind();
 	glUniform3fv(m_defaultShader.getUniformLocation("cameraPosition"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
 	glUniform1f(m_defaultShader.getUniformLocation("metallic"), 0.2f);
 	glUniform1f(m_defaultShader.getUniformLocation("roughness"), 0.5f);
-
-	int isSpotlight_int = li.isSpot() ? 1 : 0;
 
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢔⣶⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠗⡿⣾⠀⠀
@@ -218,16 +265,15 @@ public:
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), isSpotlight_int);
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
 
 	    // Bind the butterfly texture!
 	    m_butterfly_body_texture.bind(GL_TEXTURE2);
 	    glUniform1i(m_defaultShader.getUniformLocation("textureMap"), 2);
 
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(bodyMvpMatrix));
+	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyModelMatrix));
+	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyNormalMatrix));
 	    if (mesh.hasTextureCoords()) 
 	    {
 		m_texture.bind(GL_TEXTURE0);
@@ -244,7 +290,7 @@ public:
 
 	// --- RENDER BUTTERFLY WINGS MESHES
 
-	glm::mat4 leftWingModelMatrix = glm::rotate(m_modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::mat4 leftWingModelMatrix = glm::rotate(butterflyMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
 	glm::mat4 leftWingMvpMatrix = mvpMatrix * leftWingModelMatrix; 
 	glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
 
@@ -256,14 +302,20 @@ public:
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), isSpotlight_int);
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
 
 	    // Bind the butterfly texture!
-	    m_butterfly_texture.bind(GL_TEXTURE1);
+	    if (isBlue)
+	    {
+		m_butterfly_texture.bind(GL_TEXTURE1);
+	    }
+	    else
+	    {
+		m_butterfly_texture0.bind(GL_TEXTURE1);
+	    }
 	    glUniform1i(m_defaultShader.getUniformLocation("textureMap"), 1);
 	    
 	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingMvpMatrix));
-	    //Uncomment this line when you use the modelMatrix (or fragmentPosition)
 	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingModelMatrix));
 	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingNormalMatrix));
 	    if (mesh.hasTextureCoords()) 
@@ -279,7 +331,7 @@ public:
 	    mesh.draw(m_defaultShader);
 	}
     
-	glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(m_modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),glm::vec3(0.3f, 0.1f, 0.0f));
+	glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(butterflyMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),glm::vec3(0.3f, 0.1f, 0.0f));
 	glm::mat4 rightWingMvpMatrix = mvpMatrix * rightWingModelMatrix;
 	glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
 	
@@ -291,10 +343,17 @@ public:
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
 	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), isSpotlight_int);
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
 
 	    // Bind the butterfly texture!
-	    m_butterfly_texture.bind(GL_TEXTURE1);
+	    if (isBlue)
+	    {
+		m_butterfly_texture.bind(GL_TEXTURE1);
+	    }
+	    else
+	    {
+		m_butterfly_texture0.bind(GL_TEXTURE1);
+	    }
 	    glUniform1i(m_defaultShader.getUniformLocation("textureMap"), 1);
 
 	    // Send NEW matrices for the second wing
@@ -330,9 +389,10 @@ public:
 	    float flapSpeed = 10.0f;
 	    float flapAmplitude = glm::radians(45.0f);
 	    m_flapAngle = flapAmplitude * (sin(time * flapSpeed) - 0.4f * sin(time * flapSpeed * 2.0f));
+	    m_flightAngle = m_flightAngle + m_flightSpeed;
 
             // Clear the screen
-            glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+            glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             // ...
@@ -343,15 +403,19 @@ public:
 	    const glm::mat4 m_projection = glm::perspective(CAMERA_FOV, CAMERA_ASPECT_RATIO, 0.1f, DISTANCE_CLIPPING);
 	    const glm::mat4 mvpMatrix = m_projection * (cameras[camera_idx]).viewMatrix();
 
-            //const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
+            //const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_butterflyMatrix;
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
-            const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
+            const glm::mat3 normalModelMatrix0 = glm::inverseTranspose(glm::mat3(m_butterflyMatrix0));
+            const glm::mat3 normalModelMatrix1 = glm::inverseTranspose(glm::mat3(m_butterflyMatrix1));
+	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, glm::vec3(-5.0f, 0.0f, 1.0f), true); 
+	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, glm::vec3(3.0f, -2.0f, 30.0f), false); 
 
 	    // --- Rendering section!
 	    for (Light li : lights)
 	    { // For each light
-		render_butterfly(normalModelMatrix, mvpMatrix, li);
+		render_butterfly(normalModelMatrix0, mvpMatrix, li, m_butterflyMatrix0, true);
+		render_butterfly(normalModelMatrix1, mvpMatrix, li, m_butterflyMatrix1, false);
 	    }
 
 	    // --- Update the main camera input
@@ -491,13 +555,20 @@ private:
 
     // --- All the textures!
     Texture m_butterfly_texture;
+    Texture m_butterfly_texture0;
     Texture m_butterfly_body_texture;
     Texture m_texture;
     bool m_useMaterial { true };
 
     // Projection and view matrices for you to fill in and use
-    glm::mat4 m_modelMatrix { 1.0f };
+    glm::mat4 m_butterflyMatrix0 { 1.0f };
+    glm::mat4 m_butterflyMatrix1 { 1.0f };
 
+    // --- All the animation stuff!
+    float m_flightRadius = 50.0f;
+    float m_swayAmplitude = 5.0f;
+    float m_flightSpeed{ 0.025f };
+    float m_flightAngle{ 0.0f };
     float m_flapAngle{ 0.0f }; //to make the wings flap!!
 };
 
@@ -519,9 +590,14 @@ int main()
     // --- SET LIGHTS
     // Position and Forward for the first light
     glm::vec3 colL0 = {1.0f, 1.0f, 1.0f};
-    glm::vec3 posL0 = {0.0f, 0.8f, 0.0f};
+    glm::vec3 posL0 = {0.0f, 5.8f, 0.0f};
     //glm::vec3 forL0 = {-1.0f, -1.0f, -1.0f};
-    Light li = Light(colL0, posL0);
+    Light li0 = Light(colL0, posL0);
+
+    glm::vec3 colL1 = {1.0f, 1.0f, 1.0f};
+    glm::vec3 posL1 = {-2.0f, 10.0f, 4.0f};
+    //glm::vec3 forL0 = {-1.0f, -1.0f, -1.0f};
+    Light li1 = Light(colL1, posL1);
 
     // --- Create the app
     Application app;
@@ -537,8 +613,8 @@ int main()
     app.addCamera(pos0, for0, true);
 
     // --- Add the lights
-    // Add first light
-    app.addLight(li);
+    app.addLight(li0);
+    app.addLight(li1);
 
     // App start
     app.startLoop();

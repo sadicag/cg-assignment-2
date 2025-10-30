@@ -10,23 +10,14 @@ DISABLE_WARNINGS_POP()
 // Define the contents of a light source!
 class Light {
     public:
+	glm::vec3 position;
+	glm::vec3 forward;
+	glm::vec3 color;
+	bool isSpotlight;
+
 	// Create directional light
-	Light(glm::vec3 color, glm::vec3 position, glm::vec3 forward);
+	Light(glm::vec3 n_color, glm::vec3 n_position, glm::vec3 n_forward);
 	// Create spotlight
 	Light(glm::vec3 color, glm::vec3 position);
-	// Get light position
-	glm::vec3 getPos();
-	// Get direction position
-	// Returns vec3(-1) if spotlight
-	glm::vec3 getFor();
-	// Get light color
-	glm::vec3 getCol();
-	// Check if spotlight
-	bool isSpot();
-    private:
-	glm::vec3 m_position;
-	glm::vec3 m_forward;
-	glm::vec3 m_color;
-	bool m_isSpotlight;
 };
 

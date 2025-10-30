@@ -172,14 +172,135 @@ public:
 	lights.push_back(li);
     }
 
+    void selectNextLight()
+    {
+	selectedLightIndex = (selectedLightIndex + 1) % lights.size();
+    }
+
+    void selectPreviousLight()
+    {
+	if (selectedLightIndex == 0)
+	    selectedLightIndex = lights.size() - 1;
+	else
+	    --selectedLightIndex;
+    }
+	
     void imgui()
     { // Section for user interface!
-	int dummyInteger = 0; // Initialized to 0
 	// Use ImGui for easy input/output of ints, floats, strings, etc...
 	ImGui::Begin("Window");
-	ImGui::InputInt("This is an integer input", &dummyInteger); // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
-	ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
-	ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+
+	// --- ANIMATION
+	if (ImGui::CollapsingHeader("Butterfly Parameters"))
+	{
+	    ImGui::Text("Blue Orbit Offset");
+	    ImGui::InputFloat("BX", &m_butterflyOffset0.x);
+	    ImGui::InputFloat("BY", &m_butterflyOffset0.y);
+	    ImGui::InputFloat("BZ", &m_butterflyOffset0.z);
+
+	    ImGui::Separator();
+	    
+	    ImGui::Text("Redd Orbit Offset");
+	    ImGui::InputFloat("RX", &m_butterflyOffset1.x);
+	    ImGui::InputFloat("RY", &m_butterflyOffset1.y);
+	    ImGui::InputFloat("RZ", &m_butterflyOffset1.z);
+
+	    ImGui::Separator();
+
+	    ImGui::Text("General Orbit");
+	    ImGui::SliderInt("Radius", &m_flightRadius, 1, 500);
+	    ImGui::SliderInt("Sway Amplitude", &m_swayAmplitude, 0, 50);
+	    ImGui::SliderInt("Speed", &m_flightSpeed, 1, 100);
+	}
+
+	// --- LIGHTS
+
+	if (ImGui::CollapsingHeader("Scene Lightning"))
+	{
+	    // Light list
+	    std::vector<std::string> itemStrings = {};
+	    for (size_t i = 0; i < lights.size(); i++) {
+		auto string = "Light " + std::to_string(i);
+		itemStrings.push_back(string);
+	    }
+
+	    std::vector<const char*> itemCStrings = {};
+	    for (const auto& string : itemStrings) {
+		itemCStrings.push_back(string.c_str());
+	    }
+
+	    int tempSelectedItem = static_cast<int>(selectedLightIndex);
+	    if (ImGui::ListBox("Lights", &tempSelectedItem, itemCStrings.data(), (int) itemCStrings.size(), 4)) {
+		selectedLightIndex = static_cast<size_t>(tempSelectedItem);
+	    }
+
+	    // Properties for selected child
+	    ImGui::BeginChild("##Container", ImVec2(0.0f, 260.0f), ImGuiWindowFlags_AlwaysUseWindowPadding);
+	    ImGui::Text("Properties");
+
+	    // Change selected light position
+	    ImGui::InputFloat("Possition X", &lights[selectedLightIndex].position.x);
+	    ImGui::InputFloat("Position Y", &lights[selectedLightIndex].position.y);
+	    ImGui::InputFloat("Position Z", &lights[selectedLightIndex].position.z);
+
+	    // Change selected light position
+	    ImGui::Text("");
+
+	    // Checkbox for spotlight
+	    ImGui::Checkbox("Spotlight", &lights[selectedLightIndex].isSpotlight);
+	    if(!lights[selectedLightIndex].isSpotlight)
+	    {
+		ImGui::InputFloat("Direction X", &lights[selectedLightIndex].forward.x);
+		ImGui::InputFloat("Direction Y", &lights[selectedLightIndex].forward.y);
+		ImGui::InputFloat("Direction Z", &lights[selectedLightIndex].forward.z);
+	    }
+	
+	    // Change selected light color
+	    ImGui::ColorEdit3("Color", &lights[selectedLightIndex].color[0]);
+
+	    
+	    ImGui::EndChild();
+
+	    // Select previous light
+	    if (ImGui::Button("Prev"))
+	    {
+		selectPreviousLight();
+	    }
+	    ImGui::SameLine();
+	    // Select next light
+	    if (ImGui::Button("Next"))
+	    {
+		selectNextLight();;
+	    }
+	    ImGui::SameLine();
+	    // Add new light
+	    if (ImGui::Button("Add"))
+	    {
+		lights.push_back(Light { glm::vec3(1), glm::vec3(1) });
+		selectedLightIndex = lights.size()-1;
+	    }
+	    ImGui::SameLine();
+	    // Remove selected light
+	    if (ImGui::Button("Remove"))
+	    {
+		if (lights.size() > 1)
+		{
+		    lights.erase(lights.begin() + selectedLightIndex);
+		    std::cout << "Removed the light" << selectedLightIndex << std::endl;
+		    if (selectedLightIndex > 0)
+			selectedLightIndex--;
+		}
+		else
+		{
+		    std::cout << "Can not remove the only light" << std::endl;
+		}
+	    }
+	}
+
+
+	ImGui::Separator();
+	ImGui::Checkbox("PBR Shading", &m_useMaterial);
+
 	ImGui::End();
     }
 
@@ -203,8 +324,10 @@ public:
 	);
 
 	// Compute direction (tangent to flight circle)
-	glm::vec3 direction = glm::normalize(glm::vec3(-cos(angle), 0.0f, sin(angle)));
-
+	glm::vec3 direction = clockWise? 
+	    glm::normalize(glm::vec3(cos(angle), 0.0f, -sin(angle)))
+	    : glm::normalize(glm::vec3(-cos(angle), 0.0f, sin(angle)));
+	    
 	// Compute right and up vectors
 	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 	glm::vec3 right = glm::normalize(glm::cross(up, direction));
@@ -262,10 +385,10 @@ public:
 	    m_defaultShader.bind();
 
 	    // Light properties
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpotlight);
 
 	    // Bind the butterfly texture!
 	    m_butterfly_body_texture.bind(GL_TEXTURE2);
@@ -299,10 +422,10 @@ public:
 	    m_defaultShader.bind();
 
 	    // Light properties
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpotlight);
 
 	    // Bind the butterfly texture!
 	    if (isBlue)
@@ -340,10 +463,10 @@ public:
 	    m_defaultShader.bind(); 
 
 	    // Light properties
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.getPos()));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.getFor()));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.getCol()));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpot());
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
+	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.position));
+	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpotlight);
 
 	    // Bind the butterfly texture!
 	    if (isBlue)
@@ -389,7 +512,7 @@ public:
 	    float flapSpeed = 10.0f;
 	    float flapAmplitude = glm::radians(45.0f);
 	    m_flapAngle = flapAmplitude * (sin(time * flapSpeed) - 0.4f * sin(time * flapSpeed * 2.0f));
-	    m_flightAngle = m_flightAngle + m_flightSpeed;
+	    m_flightAngle = m_flightAngle + (m_flightSpeed/1000.0f);
 
             // Clear the screen
             glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
@@ -408,8 +531,8 @@ public:
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix0 = glm::inverseTranspose(glm::mat3(m_butterflyMatrix0));
             const glm::mat3 normalModelMatrix1 = glm::inverseTranspose(glm::mat3(m_butterflyMatrix1));
-	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, glm::vec3(-5.0f, 0.0f, 1.0f), true); 
-	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, glm::vec3(3.0f, -2.0f, 30.0f), false); 
+	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, m_butterflyOffset0, true); 
+	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, m_butterflyOffset1, false); 
 
 	    // --- Rendering section!
 	    for (Light li : lights)
@@ -562,22 +685,30 @@ private:
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_butterflyMatrix0 { 1.0f };
+    glm::vec3 m_butterflyOffset0 = glm::vec3(-5.0f, 4.0f, 1.0f);
     glm::mat4 m_butterflyMatrix1 { 1.0f };
+    glm::vec3 m_butterflyOffset1 = glm::vec3(3.0f, -2.0f, 30.0f);
+
+    // Lights selected Index
+    int selectedLightIndex = 0;
 
     // --- All the animation stuff!
-    float m_flightRadius = 50.0f;
-    float m_swayAmplitude = 5.0f;
-    float m_flightSpeed{ 0.025f };
-    float m_flightAngle{ 0.0f };
+    int m_flightSpeed = 35;
+    int m_flightRadius = 50;
+    int m_swayAmplitude = 25;
+    float m_flightAngle = 0.0f ;
     float m_flapAngle{ 0.0f }; //to make the wings flap!!
 };
 
 int main()
 {
+    // --- Create the app
+    Application app;
+
     // --- SET CAMERAS
     // Position and Forward for the first camera
-    glm::vec3 pos0  = {-86.67f, -0.026f, -93.40f};
-    glm::vec3 for0  = {0.678f, -0.143f, 0.720f};
+    glm::vec3 pos0  = {-68.23f, -0.035f, -105.23f};
+    glm::vec3 for0  = {0.482f, -0.077f, 0.872f};
 
     // Position and Forward for the second camera
     glm::vec3 pos1  = {-9.15f, 6.21f, -10.1f};
@@ -586,21 +717,6 @@ int main()
     // Position and Forward for the third camera
     glm::vec3 pos2  = {9.84f, 2.75f, -10.66f};
     glm::vec3 for2  = {-0.67f, 0.10f, 0.73f};
-
-    // --- SET LIGHTS
-    // Position and Forward for the first light
-    glm::vec3 colL0 = {1.0f, 1.0f, 1.0f};
-    glm::vec3 posL0 = {0.0f, 5.8f, 0.0f};
-    //glm::vec3 forL0 = {-1.0f, -1.0f, -1.0f};
-    Light li0 = Light(colL0, posL0);
-
-    glm::vec3 colL1 = {1.0f, 1.0f, 1.0f};
-    glm::vec3 posL1 = {-2.0f, 10.0f, 4.0f};
-    //glm::vec3 forL0 = {-1.0f, -1.0f, -1.0f};
-    Light li1 = Light(colL1, posL1);
-
-    // --- Create the app
-    Application app;
 
     // --- Add the cameras
     // Initialize first camera
@@ -613,8 +729,13 @@ int main()
     app.addCamera(pos0, for0, true);
 
     // --- Add the lights
-    app.addLight(li0);
-    app.addLight(li1);
+    app.addLight(
+	Light(
+	    glm::vec3(1.0f, 1.0f, 1.0f), // colour
+	    glm::vec3(10.0f, 200.0f, -10.0f), // position
+	    glm::vec3(-0.3f, -1.0f, -0.2f) // forward
+	)
+    );
 
     // App start
     app.startLoop();

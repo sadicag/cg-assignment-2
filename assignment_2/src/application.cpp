@@ -782,6 +782,8 @@ public:
 	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, m_butterflyOffset0, true);
 	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, m_butterflyOffset1, false);
 
+	    // Replace the chunk rendering loop in startLoop() with this code:
+
 	    // --- Render everything!
 	    float chunkWorldSize = (chunk_size - 1) * chunk_scale; // Total size of chunks
 
@@ -790,7 +792,6 @@ public:
 		// --- Render the butterflies
 		render_butterfly(viewProjMatrix, m_butterflyMatrix0, li, true);
 		render_butterfly(viewProjMatrix, m_butterflyMatrix1, li, false);
-
 
 		for (int tz = -chunk_tiles / 2; tz < chunk_tiles / 2; tz++)
 		{
@@ -802,18 +803,30 @@ public:
 			    tz * chunkWorldSize
 			);
 
-			// Model matrix: translate, then scale
-			glm::mat4 chunkModel = glm::translate(glm::mat4(1.0f), tileOffset);
+			// Determine rotation based on tile position for variety
+			// This creates a pattern: 0°, 90°, 180°, 270° rotation
+			int rotationIndex = (tx + tz) % 4;
+			float rotationAngle = glm::radians(90.0f * rotationIndex);
 
-			glm::mat4 chunkMvp = viewProjMatrix * chunkModel;
-			glm::mat3 chunkNormalMat = glm::inverseTranspose(glm::mat3(chunkModel));
+			// Calculate the center of the chunk for rotation
+			glm::vec3 chunkCenter = glm::vec3(
+			    chunkWorldSize * 0.5f,
+			    0.0f,
+			    chunkWorldSize * 0.5f
+			);
 
-			render_chunk(chunkNormalMat, chunkMvp, li);
+			// Model matrix: translate to position, then rotate around Y-axis
+			glm::mat4 chunkModel = glm::mat4(1.0f);
+			chunkModel = glm::translate(chunkModel, tileOffset);
+			chunkModel = glm::translate(chunkModel, chunkCenter);
+			chunkModel = glm::rotate(chunkModel, rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+			chunkModel = glm::translate(chunkModel, -chunkCenter);
+
+			render_chunk(viewProjMatrix, chunkModel, li);
 		    }
 		}
-
-	    } 
-
+	    }
+	    
 	    // --- Update the main camera input
 	    (cameras[camera_idx]).updateInput();
 
@@ -946,7 +959,7 @@ private:
     // --- Data for procedurally generated chunk!
     int chunk_seed = 15; // Must be bigger than 0
     int chunk_hills = 25;
-    int max_hill_height = 5;
+    int max_hill_height = 8;
     int chunk_size = 15;
     float chunk_y = -1.0f;
     std::vector<glm::vec3> chunk_coordinates; // Size of chunk_size^2

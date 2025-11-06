@@ -68,8 +68,8 @@ public:
 
         try {
             ShaderBuilder butterflyBuilder;
-            butterflyBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/butterfly_vert.glsl");
-            butterflyBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/butterfly_frag.glsl");
+            butterflyBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
+            butterflyBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shader_frag.glsl");
             m_butterflyShader = butterflyBuilder.build();
 
             ShaderBuilder chunkBuilder;

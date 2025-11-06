@@ -31,7 +31,7 @@ int32_t WINDOW_WIDTH = 1024;
 int32_t WINDOW_HEIGHT = 1024;
 const float CAMERA_FOV = glm::radians(60.0f);
 float CAMERA_ASPECT_RATIO = static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
-float DISTANCE_CLIPPING = 1000.0f;
+float DISTANCE_CLIPPING = 10000000.0f;
 
 // Just for the sake of clarity;
 // Define the contents of an object 
@@ -46,6 +46,7 @@ public:
         , m_butterfly_texture(RESOURCE_ROOT "resources/wing-texture.png")
         , m_butterfly_texture0(RESOURCE_ROOT "resources/wing-texture0.png")
         , m_butterfly_body_texture(RESOURCE_ROOT "resources/body-texture.png")
+        , m_chunk_texture(RESOURCE_ROOT "resources/chunk-texture.png")
     { // Initialize the application
         m_window.registerKeyCallback([this](int key, int scancode, int action, int mods) {
             if (action == GLFW_PRESS)
@@ -66,14 +67,19 @@ public:
 	butterfly_wing_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/butterfly-wings.obj");
 
         try {
-            ShaderBuilder defaultBuilder;
-            defaultBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
-            defaultBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shader_frag.glsl");
-            m_defaultShader = defaultBuilder.build();
+            ShaderBuilder butterflyBuilder;
+            butterflyBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/butterfly_vert.glsl");
+            butterflyBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/butterfly_frag.glsl");
+            m_butterflyShader = butterflyBuilder.build();
+
+            ShaderBuilder chunkBuilder;
+            chunkBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/chunk_vert.glsl");
+            chunkBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/chunk_frag.glsl");
+            m_chunkShader = chunkBuilder.build();
 
             ShaderBuilder shadowBuilder;
             shadowBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shadow_vert.glsl");
-            shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "Shaders/shadow_frag.glsl");
+            shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
             // Any new shaders can be added below in similar fashion.
@@ -297,6 +303,32 @@ public:
 	    }
 	}
 
+	// --- CHUNKS
+	
+	if (ImGui::CollapsingHeader("Chunk Properties"))
+	{
+	    ImGui::Text("Update Chunks after changing the variables below:");
+	    ImGui::InputInt("Chunk Seed", &chunk_seed);
+	    ImGui::InputInt("Chunk Hills", &chunk_hills);
+	    ImGui::InputInt("Max Hill Height", &max_hill_height);
+	    ImGui::InputInt("Chunk Size", &chunk_size);
+	    //ImGui::SliderFloat("Chunk Scale", &chunk_scale, 0.1f, 100.0f);
+	    ImGui::SliderFloat("Bezier Hill Steepness", &hill_steepness, 0.0f, 3.0f);
+
+	    ImGui::Separator();
+
+	    ImGui::Separator();
+	    if (ImGui::Button("Update Chunk"))
+	    { // Update the chunk :D
+		update_chunks();
+	    }
+
+	    ImGui::Separator();
+	    ImGui::Text("Variables below can be changed live:");
+	    ImGui::InputInt("Chunk Tiles", &chunk_tiles);
+	    ImGui::InputFloat("Chunk Y-Axis Offset", &chunk_y);
+	}
+
 
 	ImGui::Separator();
 	ImGui::Checkbox("PBR Shading", &m_useMaterial);
@@ -344,23 +376,22 @@ public:
     }
 
     void render_butterfly(
-	    glm::mat3 normalModelMatrix, 
-	    glm::mat4 mvpMatrix, 
+	    glm::mat4 viewProjMatrix, 
+	    glm::mat4 modelMatrix,
 	    Light li, 
-	    glm::mat4 butterflyMatrix,
 	    bool isBlue
     )
     { // Function to render our butterfly for the current light
 
 	// --- Butterfly Body Calculation
-	glm::mat4 bodyModelMatrix = butterflyMatrix;
-	glm::mat4 bodyMvpMatrix = mvpMatrix * bodyModelMatrix; 
+	glm::mat4 bodyModelMatrix = modelMatrix;
+	glm::mat4 bodyMvpMatrix = viewProjMatrix * bodyModelMatrix; 
 	glm::mat3 bodyNormalMatrix = glm::inverseTranspose(glm::mat3(bodyModelMatrix));
 
-	m_defaultShader.bind();
-	glUniform3fv(m_defaultShader.getUniformLocation("cameraPosition"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
-	glUniform1f(m_defaultShader.getUniformLocation("metallic"), 0.2f);
-	glUniform1f(m_defaultShader.getUniformLocation("roughness"), 0.5f);
+	m_butterflyShader.bind();
+	glUniform3fv(m_butterflyShader.getUniformLocation("cameraPosition"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
+	glUniform1f(m_butterflyShader.getUniformLocation("metallic"), 0.2f);
+	glUniform1f(m_butterflyShader.getUniformLocation("roughness"), 0.5f);
 
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢔⣶⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠗⡿⣾⠀⠀
@@ -382,50 +413,50 @@ public:
 	// --- RENDER BUTTERFLY BODY MESHES
 	for (GPUMesh& mesh : butterfly_body_meshes)
 	{
-	    m_defaultShader.bind();
+	    m_butterflyShader.bind();
 
 	    // Light properties
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpotlight);
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
+	    glUniform1i(m_butterflyShader.getUniformLocation("isSpot"), li.isSpotlight);
 
 	    // Bind the butterfly texture!
 	    m_butterfly_body_texture.bind(GL_TEXTURE2);
-	    glUniform1i(m_defaultShader.getUniformLocation("textureMap"), 2);
+	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 2);
 
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(bodyMvpMatrix));
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyModelMatrix));
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyNormalMatrix));
+	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(bodyMvpMatrix));
+	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyModelMatrix));
+	    glUniformMatrix3fv(m_butterflyShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyNormalMatrix));
 	    if (mesh.hasTextureCoords()) 
 	    {
 		m_texture.bind(GL_TEXTURE0);
-		glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
+		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
 	    }
 	    else 
 	    {
-		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
-	    mesh.draw(m_defaultShader);
+	    mesh.draw(m_butterflyShader);
 
 	}
 
 	// --- RENDER BUTTERFLY WINGS MESHES
 
-	glm::mat4 leftWingModelMatrix = glm::rotate(butterflyMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
-	glm::mat4 leftWingMvpMatrix = mvpMatrix * leftWingModelMatrix; 
+	glm::mat4 leftWingModelMatrix = glm::rotate(modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::mat4 leftWingMvpMatrix = viewProjMatrix * leftWingModelMatrix; 
 	glm::mat3 leftWingNormalMatrix = glm::inverseTranspose(glm::mat3(leftWingModelMatrix));
 
 	for (GPUMesh& mesh : butterfly_wing_meshes)
 	{
-	    m_defaultShader.bind();
+	    m_butterflyShader.bind();
 
 	    // Light properties
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpotlight);
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
+	    glUniform1i(m_butterflyShader.getUniformLocation("isSpot"), li.isSpotlight);
 
 	    // Bind the butterfly texture!
 	    if (isBlue)
@@ -436,37 +467,37 @@ public:
 	    {
 		m_butterfly_texture0.bind(GL_TEXTURE1);
 	    }
-	    glUniform1i(m_defaultShader.getUniformLocation("textureMap"), 1);
+	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 1);
 	    
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingMvpMatrix));
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingModelMatrix));
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingNormalMatrix));
+	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingMvpMatrix));
+	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingModelMatrix));
+	    glUniformMatrix3fv(m_butterflyShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingNormalMatrix));
 	    if (mesh.hasTextureCoords()) 
 	    {
 		m_texture.bind(GL_TEXTURE0);
-		glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
+		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
 	    }
 	    else 
 	    {
-		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
-	    mesh.draw(m_defaultShader);
+	    mesh.draw(m_butterflyShader);
 	}
     
-	glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(butterflyMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),glm::vec3(0.3f, 0.1f, 0.0f));
-	glm::mat4 rightWingMvpMatrix = mvpMatrix * rightWingModelMatrix;
+	glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),glm::vec3(0.3f, 0.1f, 0.0f));
+	glm::mat4 rightWingMvpMatrix = viewProjMatrix * rightWingModelMatrix;
 	glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
 	
 	for (GPUMesh& mesh : butterfly_wing_meshes)
 	{
-	    m_defaultShader.bind(); 
+	    m_butterflyShader.bind(); 
 
 	    // Light properties
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
-	    glUniform3fv(m_defaultShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.position));
-	    glUniform1i(m_defaultShader.getUniformLocation("isSpot"), li.isSpotlight);
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.position));
+	    glUniform1i(m_butterflyShader.getUniformLocation("isSpot"), li.isSpotlight);
 
 	    // Bind the butterfly texture!
 	    if (isBlue)
@@ -477,29 +508,241 @@ public:
 	    {
 		m_butterfly_texture0.bind(GL_TEXTURE1);
 	    }
-	    glUniform1i(m_defaultShader.getUniformLocation("textureMap"), 1);
+	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 1);
 
 	    // Send NEW matrices for the second wing
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingMvpMatrix)); 
-	    glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingModelMatrix)); 
-	    glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingNormalMatrix)); 
+	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingMvpMatrix)); 
+	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingModelMatrix)); 
+	    glUniformMatrix3fv(m_butterflyShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingNormalMatrix)); 
 
 	    if (mesh.hasTextureCoords())
 	    {
 		m_texture.bind(GL_TEXTURE0);
-		glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
+		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
 	    }
 	    else
 	    {
-		glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
-	    mesh.draw(m_defaultShader);
+	    mesh.draw(m_butterflyShader);
 	}  
+    }
+
+    glm::vec2 bezier_get_point(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, glm::vec2 P3, float t)
+    {
+	float u = 1.0f - t;
+	float tt = t * t;
+	float uu = u * u;
+	float uuu = uu * u;
+	float ttt = tt * t;
+
+	glm::vec2 p = uuu * P0;           // (1 - t)^3 * P0
+	p += 3.0f * uu * t * P1;          // 3(1 - t)^2 * t * P1
+	p += 3.0f * u * tt * P2;          // 3(1 - t) * t^2 * P2
+	p += ttt * P3;                    // t^3 * P3
+	
+	return p;
+    }
+
+    void create_chunk()
+    { 
+	// Create a chunk with hills on it!
+	//          /\
+	//         /**\
+	//        /****\   /\
+	//       /      \ /**\
+	//      /  /\    /    \        /\    /\  /\      /\            /\/\/\  /\
+	//     /  /  \  /      \      /  \/\/  \/  \  /\/  \/\  /\  /\/ / /  \/  \
+	//    /  /    \/ /\     \    /    \ \  /    \/ /   /  \/  \/  \  /    \   \
+	//   /  /      \/  \/\   \  /      \    /   /    \
+	//__/__/_______/___/__\___\__________________________________________________
+
+	chunk_coordinates.clear();
+	chunk_coordinates.reserve(chunk_size * chunk_size);
+
+	// --- Step 1: Base grid, scaled
+	for (int z = 0; z < chunk_size; z++)
+	{
+	    for (int x = 0; x < chunk_size; x++)
+	    {
+		chunk_coordinates.emplace_back(glm::vec3(
+		    static_cast<float>(x) * chunk_scale,
+		    0.0f,
+		    static_cast<float>(z) * chunk_scale
+		));
+	    }
+	}
+
+	// --- Step 2: Generate hills
+	srand(chunk_seed);
+	for (int h = 0; h < chunk_hills; h++)
+	{
+	    float centerX = static_cast<float>(rand() % chunk_size) * chunk_scale;
+	    float centerZ = static_cast<float>(rand() % chunk_size) * chunk_scale;
+	    float hillHeight = static_cast<float>(rand() % max_hill_height) * chunk_scale;
+	    float hillRadius = chunk_size * 0.4f * chunk_scale;
+	    
+	    for (auto& coord : chunk_coordinates)
+	    {
+		float dx = coord.x - centerX;
+		float dz = coord.z - centerZ;
+		float distance = sqrt(dx * dx + dz * dz);
+		
+		if (distance < hillRadius)
+		{
+		    float t = glm::clamp(
+			static_cast<float>(pow(distance / hillRadius, hill_steepness)), 
+			0.0f, 1.0f
+		    );
+		    
+		    // Bezier curve for smooth hill influence
+		    glm::vec2 P0(0.0f, 1.0f);
+		    glm::vec2 P1(0.2f, 0.95f);
+		    glm::vec2 P2(0.8f, 0.3f);
+		    glm::vec2 P3(1.0f, 0.0f);
+		    glm::vec2 point = bezier_get_point(P0, P1, P2, P3, t);
+		    float influence = point.y;
+		    
+		    // Calculate edge blending factor, this is to make sure the chunk is tileable!
+		    float edgeBlendDistance = chunk_size * 0.15f * chunk_scale; // Blend over 15% of chunk
+		    float distToEdgeX = glm::min(coord.x, (chunk_size - 1) * chunk_scale - coord.x);
+		    float distToEdgeZ = glm::min(coord.z, (chunk_size - 1) * chunk_scale - coord.z);
+		    float distToEdge = glm::min(distToEdgeX, distToEdgeZ);
+		    
+		    float edgeFade = glm::clamp(distToEdge / edgeBlendDistance, 0.0f, 1.0f);
+		    edgeFade = edgeFade * edgeFade * (3.0f - 2.0f * edgeFade); // Smoothstep
+		    
+		    coord.y += hillHeight * influence * edgeFade;
+		}
+	    }
+	}
+
+    }
+
+    void build_chunk_mesh()
+    { 
+
+	std::vector<Vertex> vertices;
+	std::vector<glm::uvec3> triangles;
+
+	vertices.reserve(chunk_coordinates.size());
+	triangles.reserve((chunk_size - 1) * (chunk_size - 1) * 2);
+
+	// --- Step 1: Vertices
+	for (const auto& coord : chunk_coordinates)
+	{
+	    vertices.push_back({
+		coord,  // already scaled
+		glm::vec3(0.0f, 1.0f, 0.0f),
+		glm::vec2(coord.x / (chunk_size * chunk_scale),
+			  coord.z / (chunk_size * chunk_scale))
+	    });
+	}
+
+	// --- Step 2: Triangle indices
+	for (int z = 0; z < chunk_size - 1; z++)
+	{
+	    for (int x = 0; x < chunk_size - 1; x++)
+	    {
+		unsigned int topLeft     = z * chunk_size + x;
+		unsigned int topRight    = topLeft + 1;
+		unsigned int bottomLeft  = (z + 1) * chunk_size + x;
+		unsigned int bottomRight = bottomLeft + 1;
+
+		triangles.emplace_back(topLeft, bottomLeft, topRight);
+		triangles.emplace_back(topRight, bottomLeft, bottomRight);
+	    }
+	}
+
+	// --- Step 3: Normals
+	for (auto& v : vertices) v.normal = glm::vec3(0.0f);
+
+	for (const auto& tri : triangles)
+	{
+	    glm::vec3 edge1 = vertices[tri.y].position - vertices[tri.x].position;
+	    glm::vec3 edge2 = vertices[tri.z].position - vertices[tri.x].position;
+	    glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
+
+	    vertices[tri.x].normal += normal;
+	    vertices[tri.y].normal += normal;
+	    vertices[tri.z].normal += normal;
+	}
+
+	for (auto& v : vertices)
+	{
+	    if (glm::length(v.normal) > 0.0f)
+		v.normal = glm::normalize(v.normal);
+	    else
+		v.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+	}
+
+	// --- Step 4: Create mesh
+	Mesh cpuMesh;
+	cpuMesh.vertices = std::move(vertices);
+	cpuMesh.triangles = std::move(triangles);
+	cpuMesh.material.kd = glm::vec3(0.3f, 0.7f, 0.3f);
+	cpuMesh.material.ks = glm::vec3(0.1f, 0.1f, 0.1f);
+	cpuMesh.material.shininess = 8.0f;
+	cpuMesh.material.transparency = 1.0f;
+
+	m_chunkMesh.emplace(std::move(cpuMesh));
+
+    }
+
+    void render_chunk(const glm::mat4& viewProjMatrix, glm::mat4 modelMatrix, Light li)
+    { 
+	if (!m_chunkMesh.has_value()) return;
+
+	// Calculate MVP matrix correctly
+	glm::mat4 mvpMatrix = viewProjMatrix * modelMatrix; 
+	glm::mat3 normalMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
+
+	m_chunkShader.bind();
+
+	// Camera and material properties
+	glUniform3fv(m_chunkShader.getUniformLocation("cameraPosition"), 1,
+		     glm::value_ptr(cameras[camera_idx].cameraPos()));
+	glUniform1f(m_chunkShader.getUniformLocation("metallic"), 0.0f);
+	glUniform1f(m_chunkShader.getUniformLocation("roughness"), 0.8f);
+
+	// Light properties
+	glUniform3fv(m_chunkShader.getUniformLocation("lightPosition"), 1,
+		     glm::value_ptr(li.position));
+	glUniform3fv(m_chunkShader.getUniformLocation("lightDirection_optional"), 1,
+		     glm::value_ptr(li.forward));
+	glUniform3fv(m_chunkShader.getUniformLocation("lightColor"), 1,
+		     glm::value_ptr(li.color));
+	glUniform1i(m_chunkShader.getUniformLocation("isSpot"), li.isSpotlight);
+
+	// Bind a texture for the chunks (using checkerboard)
+	m_chunk_texture.bind(GL_TEXTURE3);
+	glUniform1i(m_chunkShader.getUniformLocation("textureMap"), 3);
+
+	// Matrix uniforms
+	glUniformMatrix4fv(m_chunkShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
+			   glm::value_ptr(mvpMatrix));
+	glUniformMatrix4fv(m_chunkShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
+			   glm::value_ptr(modelMatrix));
+	glUniformMatrix3fv(m_chunkShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
+			   glm::value_ptr(normalMatrix));
+
+	// Enable material rendering
+	glUniform1i(m_chunkShader.getUniformLocation("useMaterial"), m_useMaterial);
+
+	m_chunkMesh->draw(m_chunkShader);	
+    }
+
+    void update_chunks()
+    {
+	create_chunk();
+	build_chunk_mesh();
     }
 
     void startLoop()
     {
+	// Create the chunks!
+	update_chunks();
         while (!m_window.shouldClose()) {
             // This is your game loop
             // Put your real-time logic and rendering in here
@@ -521,25 +764,55 @@ public:
             // ...
             glEnable(GL_DEPTH_TEST);
 
-	    // Calculate view-projection matrix setup
-	    // for the main camera
-	    const glm::mat4 m_projection = glm::perspective(CAMERA_FOV, CAMERA_ASPECT_RATIO, 0.1f, DISTANCE_CLIPPING);
-	    const glm::mat4 mvpMatrix = m_projection * (cameras[camera_idx]).viewMatrix();
-
             //const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_butterflyMatrix;
             // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
-            const glm::mat3 normalModelMatrix0 = glm::inverseTranspose(glm::mat3(m_butterflyMatrix0));
-            const glm::mat3 normalModelMatrix1 = glm::inverseTranspose(glm::mat3(m_butterflyMatrix1));
-	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, m_butterflyOffset0, true); 
-	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, m_butterflyOffset1, false); 
 
-	    // --- Rendering section!
+	    const glm::mat4 projectionMatrix = glm::perspective(
+		    CAMERA_FOV, 
+		    CAMERA_ASPECT_RATIO, 
+		    1.0f, 
+		    DISTANCE_CLIPPING
+	    );
+
+	    const glm::mat4 viewMatrix = cameras[camera_idx].viewMatrix(); // includes camera position and rotation
+	    const glm::mat4 viewProjMatrix = projectionMatrix * viewMatrix;
+
+	    // Update butterflies
+	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, m_butterflyOffset0, true);
+	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, m_butterflyOffset1, false);
+
+	    // --- Render everything!
+	    float chunkWorldSize = (chunk_size - 1) * chunk_scale; // Total size of chunks
+
 	    for (Light li : lights)
-	    { // For each light
-		render_butterfly(normalModelMatrix0, mvpMatrix, li, m_butterflyMatrix0, true);
-		render_butterfly(normalModelMatrix1, mvpMatrix, li, m_butterflyMatrix1, false);
-	    }
+	    {
+		// --- Render the butterflies
+		render_butterfly(viewProjMatrix, m_butterflyMatrix0, li, true);
+		render_butterfly(viewProjMatrix, m_butterflyMatrix1, li, false);
+
+
+		for (int tz = -chunk_tiles / 2; tz < chunk_tiles / 2; tz++)
+		{
+		    for (int tx = -chunk_tiles / 2; tx < chunk_tiles / 2; tx++)
+		    {
+			glm::vec3 tileOffset = glm::vec3(
+			    tx * chunkWorldSize,
+			    chunk_y * chunkWorldSize,
+			    tz * chunkWorldSize
+			);
+
+			// Model matrix: translate, then scale
+			glm::mat4 chunkModel = glm::translate(glm::mat4(1.0f), tileOffset);
+
+			glm::mat4 chunkMvp = viewProjMatrix * chunkModel;
+			glm::mat3 chunkNormalMat = glm::inverseTranspose(glm::mat3(chunkModel));
+
+			render_chunk(chunkNormalMat, chunkMvp, li);
+		    }
+		}
+
+	    } 
 
 	    // --- Update the main camera input
 	    (cameras[camera_idx]).updateInput();
@@ -662,12 +935,26 @@ private:
     Window m_window;
 
     // Shader for default rendering and for depth rendering
-    Shader m_defaultShader;
+    Shader m_butterflyShader;
+    Shader m_chunkShader;
     Shader m_shadowShader;
 
     // --- Meshes of an object file!
     ObjectFile butterfly_body_meshes;
     ObjectFile butterfly_wing_meshes;
+
+    // --- Data for procedurally generated chunk!
+    int chunk_seed = 15; // Must be bigger than 0
+    int chunk_hills = 25;
+    int max_hill_height = 5;
+    int chunk_size = 15;
+    float chunk_y = -1.0f;
+    std::vector<glm::vec3> chunk_coordinates; // Size of chunk_size^2
+    glm::mat4 m_chunkMatrix { 1.0f }; // Identity Matrix
+    std::optional<GPUMesh> m_chunkMesh;
+    float chunk_scale = 20.0f;
+    float hill_steepness = 0.575f;
+    int chunk_tiles = 50;
 
     // --- All the cameras!
     std::vector<Camera> cameras;
@@ -681,6 +968,7 @@ private:
     Texture m_butterfly_texture0;
     Texture m_butterfly_body_texture;
     Texture m_texture;
+    Texture m_chunk_texture;
     bool m_useMaterial { true };
 
     // Projection and view matrices for you to fill in and use

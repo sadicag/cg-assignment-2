@@ -36,11 +36,13 @@ void main()
 
     vec3 ambientColor = vec3(0.2, 0.2, 0.2);
 
+    
     if (useMaterial == 0)
     { // Don't use material
 	fragColor = vec4(fragNormal, 1.0f);
 	return;
     }
+    
 
     vec3 N = normalize(fragNormal);
     vec3 L = normalize(
@@ -82,19 +84,21 @@ void main()
     vec3 kD = (1.0 - kS) * (1.0 - metallic);
     vec3 diffuse = kD * kd / 3.14159265;
 
+
     // Combine lighting
     vec3 textureColor = texture(textureMap, fragTexCoord).rgb;
+
     
     // Compute light attenuation (optional but helps realism)
     float distance = length(lightPosition - fragPosition);
-    float attenuation = 1.0 / (distance * distance); // simple inverse-square falloff
+    float attenuation = 1.0 / (1.0 + distance * 0.05 + distance * distance * 0.001);
 
     // Light radiance
     vec3 lightRadiance = lightColor * attenuation;
 
     // Combine components
     vec3 ambient = ambientColor * textureColor;
-    vec3 diffuseSpecular = (diffuse + specular) * lightRadiance;
+    vec3 diffuseSpecular = (diffuse + specular) * lightRadiance * NdotL; 
 
     vec3 finalColor = ambient + diffuseSpecular;
 

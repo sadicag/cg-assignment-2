@@ -82,6 +82,8 @@ public:
             shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
+
+
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
@@ -332,6 +334,8 @@ public:
 
 	ImGui::Separator();
 	ImGui::Checkbox("PBR Shading", &m_useMaterial);
+	ImGui::SliderFloat("Metallic", &m_metallic, 0.0f, 1.0f);
+	ImGui::SliderFloat("Roughness", &m_roughness, 0.0f, 1.0f);
 
 	ImGui::End();
     }
@@ -390,8 +394,8 @@ public:
 
 	m_butterflyShader.bind();
 	glUniform3fv(m_butterflyShader.getUniformLocation("cameraPosition"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
-	glUniform1f(m_butterflyShader.getUniformLocation("metallic"), 0.2f);
-	glUniform1f(m_butterflyShader.getUniformLocation("roughness"), 0.5f);
+	glUniform1f(m_butterflyShader.getUniformLocation("metallic"), m_metallic);
+	glUniform1f(m_butterflyShader.getUniformLocation("roughness"), m_roughness);
 
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢔⣶⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠗⡿⣾⠀⠀
@@ -432,7 +436,7 @@ public:
 	    {
 		m_texture.bind(GL_TEXTURE0);
 		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
-		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
+		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_TRUE);
 	    }
 	    else 
 	    {
@@ -496,7 +500,7 @@ public:
 	    // Light properties
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
-	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.position));
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
 	    glUniform1i(m_butterflyShader.getUniformLocation("isSpot"), li.isSpotlight);
 
 	    // Bind the butterfly texture!
@@ -986,6 +990,8 @@ private:
     int m_swayAmplitude = 25;
     float m_flightAngle = 0.0f ;
     float m_flapAngle{ 0.0f }; //to make the wings flap!!
+	float m_metallic = 0.2f;
+	float m_roughness = 0.5f;
 };
 
 int main()
@@ -1017,13 +1023,15 @@ int main()
     app.addCamera(pos0, for0, true);
 
     // --- Add the lights
+	
     app.addLight(
 	Light(
-	    glm::vec3(1.0f, 1.0f, 1.0f), // colour
-	    glm::vec3(10.0f, 200.0f, -10.0f), // position
+	    glm::vec3(1.2f, 1.0f, 0.8f), // colour
+	    glm::vec3(10.0f, 10.0f, 50.0f), // position
 	    glm::vec3(-0.3f, -1.0f, -0.2f) // forward
 	)
     );
+	
 
     // App start
     app.startLoop();

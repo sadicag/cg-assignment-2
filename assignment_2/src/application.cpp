@@ -62,6 +62,10 @@ public:
                 onMouseReleased(button, mods);
         });
 
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+	glDisable(GL_CULL_FACE); // Draw both sides of the wings
+
 	// Initialize the meshes
 	butterfly_body_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/butterfly-body.obj");
 	butterfly_wing_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/butterfly-wings.obj");
@@ -1026,8 +1030,8 @@ int main()
 	
     app.addLight(
 	Light(
-	    glm::vec3(1.2f, 1.0f, 0.8f), // colour
-	    glm::vec3(10.0f, 10.0f, 50.0f), // position
+	    glm::vec3(5.0f, 5.0f, 5.0f), // colour
+	    glm::vec3(10.0f, 10.0f, 10.0f), // position
 	    glm::vec3(-0.3f, -1.0f, -0.2f) // forward
 	)
     );

@@ -1137,7 +1137,7 @@ public:
 	    const glm::mat4 viewMatrix = cameras[camera_idx].viewMatrix(); // includes camera position and rotation
 	    const glm::mat4 viewProjMatrix = projectionMatrix * viewMatrix;
 
-	    if (m_useEnvironmentMapping && m_environmentMap)
+	    if (m_useEnvironmentMapping)
 	    {
 		// Make sure depth test lets the skybox appear behind everything
 		glDepthFunc(GL_LEQUAL);
@@ -1408,7 +1408,7 @@ private:
 
     // --- Environment mapping!
     GLuint m_environmentMap;
-    bool m_useEnvironmentMapping { false };
+    bool m_useEnvironmentMapping { true };
     float m_reflectivity { 0.5f };
 
     // Skybox resources

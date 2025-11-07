@@ -68,8 +68,8 @@ public:
 
         try {
             ShaderBuilder butterflyBuilder;
-            butterflyBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/butterfly_vert.glsl");
-            butterflyBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/butterfly_frag.glsl");
+            butterflyBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
+            butterflyBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shader_frag.glsl");
             m_butterflyShader = butterflyBuilder.build();
 
             ShaderBuilder chunkBuilder;
@@ -557,7 +557,10 @@ public:
 
 	if (ImGui::CollapsingHeader("Rendering Settings"))
 	{
+		ImGui::Checkbox("Show Normals", &showNormals);
 	    ImGui::Checkbox("PBR Shading", &m_useMaterial);
+		ImGui::SliderFloat("Metallic", &metallic, 0.0f, 1.0f);
+		ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
 	    ImGui::Checkbox("Enable Shadows", &shadows);
 	    ImGui::Checkbox("Enable Environment Mapping", &m_useEnvironmentMapping);
 	    if (m_useEnvironmentMapping) {
@@ -625,6 +628,7 @@ public:
 	glUniform1f(m_butterflyShader.getUniformLocation("metallic"), 0.2f);
 	glUniform1f(m_butterflyShader.getUniformLocation("roughness"), 0.5f);
 	glUniform1i(m_butterflyShader.getUniformLocation("isShadow"), shadows);
+	glUniform1i(m_butterflyShader.getUniformLocation("showNormals"), showNormals);
 
 	// Environment mapping uniforms
 	glUniform1i(m_butterflyShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping ? 1 : 0);
@@ -962,8 +966,8 @@ public:
 	// Camera and material properties
 	glUniform3fv(m_chunkShader.getUniformLocation("cameraPosition"), 1,
 		     glm::value_ptr(cameras[camera_idx].cameraPos()));
-	glUniform1f(m_chunkShader.getUniformLocation("metallic"), 0.0f);
-	glUniform1f(m_chunkShader.getUniformLocation("roughness"), 0.8f);
+	glUniform1f(m_chunkShader.getUniformLocation("metallic"), metallic);
+	glUniform1f(m_chunkShader.getUniformLocation("roughness"), roughness);
 	glUniform1i(m_chunkShader.getUniformLocation("isShadow"), shadows);
 
 
@@ -972,7 +976,9 @@ public:
 	glUniform1f(m_chunkShader.getUniformLocation("reflectivity"), m_reflectivity);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
-	glUniform1i(m_chunkShader.getUniformLocation("environmentMap"), 5); 
+	glUniform1i(m_chunkShader.getUniformLocation("environmentMap"), 5); \
+	glUniform1i(m_chunkShader.getUniformLocation("showNormals"), showNormals);
+
 
 	// Light properties
 	glUniform3fv(m_chunkShader.getUniformLocation("lightPosition"), 1,
@@ -1291,11 +1297,16 @@ private:
     const int SHADOW_HEIGHT = 2048;
     glm::mat4 m_lightSpaceMatrix;
     bool shadows = true;
+	bool showNormals = false;
 
     // --- Environment mapping!
     GLuint m_environmentMap;
     bool m_useEnvironmentMapping { false };
     float m_reflectivity { 0.5f };
+
+	//PBR
+	float metallic = 0.3;
+	float roughness = 0.5;
 
 };
 
@@ -1328,21 +1339,24 @@ int main()
     app.addCamera(pos0, for0, true);
 
     // --- Add the lights
-    app.addLight(
-	Light(
-	    glm::vec3(1.0f, 1.0f, 1.0f), // colour
-	    glm::vec3(-68.61f, 135.0f, -81.0f), // position
-	    glm::vec3(-0.3f, -0.67f, 0.67f) // forward
+	app.addLight(
+		Light(
+			glm::vec3(1.0f, 1.0f, 1.0f), // colour
+			//glm::vec3(-68.61f, 135.0f, -81.0f),
+			glm::vec3(0.0f, 30.0f, 0.0f), 
+			glm::vec3(-0.3f, -0.67f, 0.67f) // forward
 	)
     );
 
-    app.addLight(
+    /*app.addLight(
 	Light(
 	    glm::vec3(0.0f, 0.5f, 0.5f),   // white light
 	    glm::vec3(100.0f, 50.0f, 120.0f),   // position above and in front
 	    glm::vec3(0.0f, -5.0f, -5.0f)  // direction downward/forward
 	)
     );
+	*/
+
 
     // App start
     app.startLoop();

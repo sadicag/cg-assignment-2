@@ -1,52 +1,95 @@
 #version 410
 
-layout(std140) uniform Material // Must match the GPUMaterial defined in src/mesh.h
+// Material properties - this should match GPUMaterial in mesh.h
+layout(std140) uniform Material
 {
     vec3 kd;
-	vec3 ks;
-	float shininess;
-	float transparency;
+    vec3 ks;
+    float shininess;
+    float transparency;
 };
 
 uniform int useMaterial;
 uniform sampler2D colorMap;
-
-// Butterfly texture properties
 uniform sampler2D textureMap;
 
+// Shadow mapping
+uniform sampler2D shadowMap;
+uniform mat4 lightSpaceMatrix;
+
 // Light properties
-uniform vec3 lightPosition; // Position
-uniform vec3 lightDirection_optional; // Direction
-uniform vec3 lightColor; // Colour
-uniform int isSpot; // Is spotlight? :0
+uniform vec3 lightPosition;
+uniform vec3 lightDirection_optional;
+uniform vec3 lightColor;
+uniform int isSpot;
+
+// PBR properties
+uniform vec3 cameraPosition;
+uniform float metallic;
+uniform float roughness;
 
 in vec3 fragPosition; 
 in vec3 fragNormal;
 in vec2 fragTexCoord;
 
-//these ones i just added:
-uniform vec3 cameraPosition;
-uniform float metallic;
-uniform float roughness;
-
 layout(location = 0) out vec4 fragColor;
+
+// Calculate shadow with PCF
+float calculateShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
+{
+    // Transform fragment position to light space
+    vec4 fragPosLightSpace = lightSpaceMatrix * vec4(fragPos, 1.0);
+    
+    // Perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    
+    // Transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    // Check if fragment is outside light's frustum
+    if(projCoords.z > 1.0)
+        return 0.0;
+    
+    // Get closest depth value from shadow map
+    float closestDepth = texture(shadowMap, projCoords.xy).r;
+    
+    // Get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+    
+    // Calculate bias to prevent shadow acne
+    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    
+    // PCF (Percentage Closer Filtering) for softer shadows
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x)
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
+    shadow /= 9.0;
+    
+    return shadow;
+}
 
 void main()
 {
-
-    vec3 ambientColor = vec3(0.2, 0.2, 0.2);
+    vec3 ambientColor = vec3(0.3, 0.3, 0.3);
 
     if (useMaterial == 0)
-    { // Don't use material
-	fragColor = vec4(fragNormal, 1.0f);
-	return;
+    {
+        fragColor = vec4(fragNormal, 1.0f);
+        return;
     }
 
     vec3 N = normalize(fragNormal);
     vec3 L = normalize(
-	    isSpot == 1 ? 
-	    lightPosition - fragPosition : 
-	    -lightDirection_optional
+        isSpot == 1 ? 
+        lightPosition - fragPosition : 
+        -lightDirection_optional
     );
     vec3 V = normalize(cameraPosition - fragPosition);
     vec3 H = normalize(V + L);
@@ -85,16 +128,19 @@ void main()
     // Combine lighting
     vec3 textureColor = texture(textureMap, fragTexCoord).rgb;
     
-    // Compute light attenuation (optional but helps realism)
+    // Compute light attenuation
     float distance = length(lightPosition - fragPosition);
-    float attenuation = 1.0 / (distance * distance); // simple inverse-square falloff
+    float attenuation = 1.0 / (1.0 + 0.07 * distance + 0.017 * distance * distance);
+    
+    // Calculate shadow (ALWAYS calculate, even if not fully visible)
+    float shadow = calculateShadow(fragPosition, N, L);
 
     // Light radiance
     vec3 lightRadiance = lightColor * attenuation;
 
-    // Combine components
+    // Combine components with shadow
     vec3 ambient = ambientColor * textureColor;
-    vec3 diffuseSpecular = (diffuse + specular) * lightRadiance;
+    vec3 diffuseSpecular = (diffuse + specular) * lightRadiance * NdotL * (1.0 - shadow * 0.7);
 
     vec3 finalColor = ambient + diffuseSpecular;
 
@@ -102,6 +148,4 @@ void main()
     finalColor = clamp(finalColor, 0.0, 1.0);
 
     fragColor = vec4(finalColor, 1.0);
-	
-
 }

@@ -12,6 +12,7 @@ layout(std140) uniform Material
 // We use the:
 // Cook-Torrance BRDF model
 
+uniform int showNormals;
 uniform int useMaterial;
 uniform sampler2D colorMap;
 uniform sampler2D textureMap;
@@ -88,6 +89,10 @@ float calculateShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 
 void main()
 {
+    if(showNormals == 1){
+        fragColor = vec4( 0.5 * 0.5 + normalize(fragNormal),1.0f);
+        return;
+    }
     vec3 ambientColor = vec3(0.3, 0.3, 0.3);
 
     if (useMaterial == 0)

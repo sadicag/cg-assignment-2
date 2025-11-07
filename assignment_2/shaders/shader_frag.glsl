@@ -1,10 +1,20 @@
 #version 410
 
+// Material properties - this should match GPUMaterial in mesh.h
+
+layout(std140) uniform Material
+{
+    vec3 kd;
+    vec3 ks;
+    float shininess;
+    float transparency;
+};
+
 //Uniforms for Blinn Phong
 uniform int use_blinnPhong;
-uniform vec3 kd;
-uniform vec3 ks;
-uniform float shininess;
+uniform vec3 b_kd;
+uniform vec3 b_ks;
+uniform float b_shininess;
 
 //Uniforms for Cook Torrance GGX
 uniform int usePBR;
@@ -33,9 +43,9 @@ uniform vec3 cameraPosition;
 
 
 // Environment mapping
-uniform samplerCube environmentMap;
-uniform int useEnvironmentMapping;
-uniform float reflectivity;
+//uniform samplerCube environmentMap;
+//uniform int useEnvironmentMapping;
+//uniform float reflectivity;
 
 in vec3 fragPosition; 
 in vec3 fragNormal;
@@ -110,7 +120,7 @@ void main()
     vec3 H = normalize(L + V);
 
     // ---- Shadow ----
-    float shadow = calculateShadow(fragPosition, N, L);
+    float shadow = isShadow ? calculateShadow(fragPosition, N, L) : 0.0; 
     float shadowFactor = 1.0 - shadow;
 
     // ---- Texture and base color ----
@@ -129,15 +139,18 @@ void main()
 
 
     if (use_blinnPhong == 1) {
-        vec3 albedo = kd * tex;
+	vec3 m_kd = b_kd;
+	vec3 m_ks = b_ks;
+	float m_shininess = b_shininess;
+        vec3 albedo = m_kd * tex;
 
         float NdotL = max(dot(N, L), 0.0);
         float NdotH = max(dot(N, H), 0.0);
 
         vec3 ambient  = albedo * ambientStrength;
         vec3 diffuse  = albedo * NdotL;
-        float specPow = (NdotL > 0.0) ? pow(NdotH, shininess) : 0.0;
-        vec3 specular = ks * specPow;
+        float specPow = (NdotL > 0.0) ? pow(NdotH, m_shininess) : 0.0;
+        vec3 specular = m_ks * specPow;
 
         vec3 lighting = ambient + (diffuse + specular) * radiance * shadowFactor;
         fragColor = vec4(clamp(lighting, 0.0, 1.0), 1.0);

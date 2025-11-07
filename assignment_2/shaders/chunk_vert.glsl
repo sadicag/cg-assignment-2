@@ -25,10 +25,10 @@ void main()
     fragTexCoord    = texCoord;
     
     // Calculate tangent and bitangent for normal mapping
-    // Using simplified tangent calculation based on texture coordinates
+    //  simplified tangent based on texture coordinates
     vec3 worldNormal = normalize(normalModelMatrix * normal);
     
-    // Create tangent vector perpendicular to normal
+    // tangent vector perpendicular to normal
     vec3 c1 = cross(worldNormal, vec3(0.0, 0.0, 1.0));
     vec3 c2 = cross(worldNormal, vec3(0.0, 1.0, 0.0));
     

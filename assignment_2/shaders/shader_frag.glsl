@@ -1,6 +1,6 @@
 #version 410
 
-// Material properties - this should match GPUMaterial in mesh.h
+// Material uniforms
 
 layout(std140) uniform Material
 {
@@ -42,11 +42,6 @@ uniform int isSpot;
 uniform vec3 cameraPosition;
 
 
-// Environment mapping
-//uniform samplerCube environmentMap;
-//uniform int useEnvironmentMapping;
-//uniform float reflectivity;
-
 in vec3 fragPosition; 
 in vec3 fragNormal;
 in vec2 fragTexCoord;
@@ -55,32 +50,32 @@ layout(location = 0) out vec4 fragColor;
 
 float calculateShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
-    // Transform fragment position to light space
+    // transform fragment position to light space
     vec4 fragPosLightSpace = lightSpaceMatrix * vec4(fragPos, 1.0);
     
-    // Perspective divide
+    // perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     
-    // Transform to [0,1] range
+    // to correct range
     projCoords = projCoords * 0.5 + 0.5;
     
-    // Check if fragment is outside light's frustum
-    // If outside, assume it's in shadow (or no shadow, depending on your preference)
+    // if fragment is outside light's frustum
+    // if outside, assume it's in shadow 
     if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
        projCoords.y < 0.0 || projCoords.y > 1.0 || 
        projCoords.z > 1.0)
-        return 1.0; // Return 1.0 for full shadow outside bounds
+        return 1.0; // 
     
-    // Get closest depth value from shadow map
+    // closest depth value from shadow map
     float closestDepth = texture(shadowMap, projCoords.xy).r;
     
-    // Get depth of current fragment from light's perspective
+    // depth of current fragment from light's perspective
     float currentDepth = projCoords.z;
     
-    // Calculate bias to prevent shadow acne
+    // little bias to prevent shadow acne
     float bias = max(0.005 * (1.0 - dot(normal, lightDir)), 0.001);
     
-    // PCF (Percentage Closer Filtering) for softer shadows
+    // PCF for softer shadows 
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
     for(int x = -1; x <= 1; ++x)
@@ -101,14 +96,14 @@ const float ambientStrength = 0.2;
 
 void main()
 {
-    // ---- Debug normals ----
+    // Display normals 
     if (showNormals == 1) {
         vec3 n = normalize(fragNormal) * 0.5 + 0.5;
         fragColor = vec4(n, 1.0);
         return;
     }
 
-    // ---- Basis ----
+    // needed for both BlinnPhong and Cook Torrange GGX
     vec3 N = normalize(fragNormal);
     if (!gl_FrontFacing)
         N = -N;
@@ -119,25 +114,20 @@ void main()
     vec3 V = normalize(cameraPosition - fragPosition);
     vec3 H = normalize(L + V);
 
-    // ---- Shadow ----
+    // calculate if shadowed with extra function above
     float shadow = isShadow ? calculateShadow(fragPosition, N, L) : 0.0; 
     float shadowFactor = 1.0 - shadow;
 
-    // ---- Texture and base color ----
+    // base color
     vec3 tex = texture(textureMap, fragTexCoord).rgb;
 
-    // ---- Attenuation ----
-    float attConstant = 1.0;
-    float attLinear = 0.09;
-    float attQuadratic = 0.032;
-    float attenuation = 1.0;
+    //if is spotlight
     if (isSpot == 1) {
         float dist = length(lightPosition - fragPosition);
-        //attenuation = 1.0 / (attConstant + attLinear * dist + attQuadratic * dist * dist);
     }
-    vec3 radiance = lightColor * attenuation;
+    vec3 radiance = lightColor;
 
-
+    // this section is for Blinn Phong diffuse + specular
     if (use_blinnPhong == 1) {
 	vec3 m_kd = b_kd;
 	vec3 m_ks = b_ks;
@@ -160,13 +150,13 @@ void main()
 
     if (usePBR == 1) {
         vec3 albedo = kdPBR * tex; 
-        // Core dot products
+        //  dot products
         float NdotL = max(dot(N, L), 0.0);
-        float NdotV = max(dot(N, V), 0.0);
+        float NdotV  = max(dot(N, V), 0.0);
         float NdotH = max(dot(N, H), 0.0);
         float VdotH = max(dot(V, H), 0.0);
 
-        // Fresnel (Schlick approximation)
+        // the Fresnel term
         vec3 F0 = mix(vec3(0.04), albedo, metallic);
         vec3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
 
@@ -176,34 +166,34 @@ void main()
         float denom = (NdotH * NdotH) * (alpha2 - 1.0) + 1.0;
         float D = alpha2 / (3.14159265 * denom * denom);
 
-        // Smith geometry term
+        // the Smith geometry term
         float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;  
         float G_V = NdotV / (NdotV * (1.0 - k) + k);
         float G_L = NdotL / (NdotL * (1.0 - k) + k);
         float G = G_V * G_L;
 
-        // Specular term
+        // finally  the specular 
         vec3 numerator = D * G * F;
         float denominator = 4.0 * NdotV * NdotL + 0.001;
         vec3 specular = numerator / denominator;
 
-        // Diffuse + energy conservation
+        // diffuse + energy conservation
         vec3 kS = F;
         vec3 kD = (1.0 - kS) * (1.0 - metallic); 
         vec3 diffuse = kD * albedo / 3.14159265;
 
-        // Combine lighting
+        // combining
         vec3 color = (diffuse + specular) * radiance * NdotL * shadowFactor;
 
-        // Ambient (simple fallback, no IBL yet)
+        // Ambient 
         color += albedo * ambientStrength;
 
-        // Gamma correction
+        // we really needed gamma correction
         color = pow(clamp(color, 0.0, 1.0), vec3(1.0 / 2.2));
         fragColor = vec4(color, 1.0);
         return;
     }
 
-    // if both PBR and Blinn Phong are off 
+    // if both PBR and Blinn Phong are off then we just display the base color (one butterfly is blue and the other one is pink)
     fragColor = vec4(texture(textureMap, fragTexCoord).rgb, 1.0);
 }

@@ -1,6 +1,6 @@
 #version 410
 
-// Material properties - this should match GPUMaterial in mesh.h
+// Material properties 
 layout(std140) uniform Material
 {
     vec3 kd;

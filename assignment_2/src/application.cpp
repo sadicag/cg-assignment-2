@@ -92,9 +92,216 @@ public:
         }
 
 	// Load the textures!
-	
-
+	initShadowMapping();	
+	initEnvironmentMap();
     }
+
+    void initEnvironmentMap()
+    {
+        glGenTextures(1, &m_environmentMap);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
+
+        // You'll need 6 images for a cubemap (right, left, top, bottom, front, back)
+        // For now, let's create a simple procedural cubemap or use placeholder colors
+        std::vector<std::string> faces = {
+            RESOURCE_ROOT "resources/skybox/right.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_X
+            RESOURCE_ROOT "resources/skybox/left.png",    // GL_TEXTURE_CUBE_MAP_NEGATIVE_X
+            RESOURCE_ROOT "resources/skybox/top.png",     // GL_TEXTURE_CUBE_MAP_POSITIVE_Y
+            RESOURCE_ROOT "resources/skybox/bottom.png",  // GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
+            RESOURCE_ROOT "resources/skybox/front.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_Z
+            RESOURCE_ROOT "resources/skybox/back.png"     // GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
+        };
+
+        // Try to load actual images
+        for (unsigned int i = 0; i < faces.size(); i++)
+        {
+            // Use stb_image to load (you might need to add this)
+            // For now, create a simple colored cubemap
+            int width = 512, height = 512;
+            std::vector<unsigned char> data(width * height * 3);
+            
+            // Create simple gradient colors for each face
+            glm::vec3 colors[] = {
+                glm::vec3(0.5f, 0.7f, 1.0f), // right - light blue
+                glm::vec3(0.3f, 0.5f, 0.9f), // left - darker blue
+                glm::vec3(0.7f, 0.8f, 1.0f), // top - bright blue (sky)
+                glm::vec3(0.2f, 0.3f, 0.2f), // bottom - dark green (ground)
+                glm::vec3(0.4f, 0.6f, 0.95f), // front - blue
+                glm::vec3(0.4f, 0.6f, 0.95f)  // back - blue
+            };
+            
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int idx = (y * width + x) * 3;
+                    data[idx + 0] = (unsigned char)(colors[i].r * 255);
+                    data[idx + 1] = (unsigned char)(colors[i].g * 255);
+                    data[idx + 2] = (unsigned char)(colors[i].b * 255);
+                }
+            }
+            
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 
+                         0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data.data());
+        }
+
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    }
+
+    void initShadowMapping()
+    {
+	// Create framebuffer
+	glGenFramebuffers(1, &m_shadowMapFBO);
+	
+	// Create depth texture
+	glGenTextures(1, &m_shadowMapTexture);
+	glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 
+		     SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+	
+	// Attach depth texture to framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, m_shadowMapFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_shadowMapTexture, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	
+	// Check if framebuffer is complete
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	    std::cerr << "Shadow framebuffer not complete!" << std::endl;
+	
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    void renderShadowMap(const Light& light)
+    {
+	m_lightSpaceMatrix = calculateLightSpaceMatrix(light);
+	
+	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_shadowMapFBO);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	
+	// Enable front face culling to reduce shadow acne
+	glCullFace(GL_FRONT);
+	
+	m_shadowShader.bind();
+	
+	// Render butterflies to shadow map
+	renderButterflyDepth(m_butterflyMatrix0);
+	renderButterflyDepth(m_butterflyMatrix1);
+	
+	// Render chunks to shadow map
+	float chunkWorldSize = (chunk_size - 1) * chunk_scale;
+	for (int tz = -chunk_tiles / 2; tz < chunk_tiles / 2; tz++)
+	{
+	    for (int tx = -chunk_tiles / 2; tx < chunk_tiles / 2; tx++)
+	    {
+		glm::vec3 tileOffset = glm::vec3(
+		    tx * chunkWorldSize,
+		    chunk_y * chunkWorldSize,
+		    tz * chunkWorldSize
+		);
+		
+		int rotationIndex = (tx + tz) % 4;
+		float rotationAngle = glm::radians(90.0f * rotationIndex);
+		glm::vec3 chunkCenter = glm::vec3(chunkWorldSize * 0.5f, 0.0f, chunkWorldSize * 0.5f);
+		
+		glm::mat4 chunkModel = glm::mat4(1.0f);
+		chunkModel = glm::translate(chunkModel, tileOffset);
+		chunkModel = glm::translate(chunkModel, chunkCenter);
+		chunkModel = glm::rotate(chunkModel, rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+		chunkModel = glm::translate(chunkModel, -chunkCenter);
+		
+		renderChunkDepth(chunkModel);
+	    }
+	}
+	
+	glCullFace(GL_BACK);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    } 
+
+    glm::mat4 calculateLightSpaceMatrix(const Light& light)
+    {
+	if (light.isSpotlight == false)
+	{
+	    glm::vec3 lightDir = glm::normalize(light.forward);
+	    glm::vec3 lightPos = -lightDir * 100.0f; // Closer light position
+	    
+	    // Tighter ortho bounds for better shadow resolution
+	    glm::mat4 lightProjection = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, 0.1f, 300.0f);
+	    glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	    
+	    return lightProjection * lightView;
+	}
+	else
+	{
+	    glm::mat4 lightProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 300.0f);
+	    glm::mat4 lightView = glm::lookAt(light.position, 
+					      light.position + light.forward, 
+					      glm::vec3(0.0f, 1.0f, 0.0f));
+	    return lightProjection * lightView;
+	}
+    }
+
+    void renderButterflyDepth(glm::mat4 modelMatrix)
+    {
+	m_shadowShader.bind();
+	
+	// Body
+	glUniformMatrix4fv(m_shadowShader.getUniformLocation("lightSpaceMatrix"), 
+			   1, GL_FALSE, glm::value_ptr(m_lightSpaceMatrix));
+	glUniformMatrix4fv(m_shadowShader.getUniformLocation("modelMatrix"), 
+			   1, GL_FALSE, glm::value_ptr(modelMatrix));
+	
+	for (GPUMesh& mesh : butterfly_body_meshes)
+	{
+	    mesh.draw(m_shadowShader);
+	}
+	
+	// Left wing
+	glm::mat4 leftWingModel = glm::rotate(modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+	glUniformMatrix4fv(m_shadowShader.getUniformLocation("modelMatrix"), 
+			   1, GL_FALSE, glm::value_ptr(leftWingModel));
+	
+	for (GPUMesh& mesh : butterfly_wing_meshes)
+	{
+	    mesh.draw(m_shadowShader);
+	}
+	
+	// Right wing
+	glm::mat4 rightWingModel = glm::translate(
+	    glm::rotate(modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),
+	    glm::vec3(0.3f, 0.1f, 0.0f)
+	);
+	glUniformMatrix4fv(m_shadowShader.getUniformLocation("modelMatrix"), 
+			   1, GL_FALSE, glm::value_ptr(rightWingModel));
+	
+	for (GPUMesh& mesh : butterfly_wing_meshes)
+	{
+	    mesh.draw(m_shadowShader);
+	}
+    }
+
+    void renderChunkDepth(glm::mat4 modelMatrix)
+    {
+	if (!m_chunkMesh.has_value()) return;
+	
+	m_shadowShader.bind();
+	glUniformMatrix4fv(m_shadowShader.getUniformLocation("lightSpaceMatrix"), 
+			   1, GL_FALSE, glm::value_ptr(m_lightSpaceMatrix));
+	glUniformMatrix4fv(m_shadowShader.getUniformLocation("modelMatrix"), 
+			   1, GL_FALSE, glm::value_ptr(modelMatrix));
+	
+	m_chunkMesh->draw(m_shadowShader);
+    } 
+
 
     // --- Camera Stuff
     //⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⡤⢤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -190,7 +397,19 @@ public:
 	else
 	    --selectedLightIndex;
     }
+
+    void swapShadowMapLight()
+    {
+	if (selectedLightIndex == 0)
+	    return;
 	
+	Light li = lights[0];
+	lights[0] = lights[selectedLightIndex];
+	lights[selectedLightIndex] = li;
+	selectedLightIndex = 0;
+    }
+
+    // --- Controls!!!
     void imgui()
     { // Section for user interface!
 	// Use ImGui for easy input/output of ints, floats, strings, etc...
@@ -227,6 +446,8 @@ public:
 	    std::vector<std::string> itemStrings = {};
 	    for (size_t i = 0; i < lights.size(); i++) {
 		auto string = "Light " + std::to_string(i);
+		if (i == 0)
+		    string = string + " (Shadow Mapping)";
 		itemStrings.push_back(string);
 	    }
 
@@ -263,8 +484,6 @@ public:
 	
 	    // Change selected light color
 	    ImGui::ColorEdit3("Color", &lights[selectedLightIndex].color[0]);
-
-	    
 	    ImGui::EndChild();
 
 	    // Select previous light
@@ -301,6 +520,12 @@ public:
 		    std::cout << "Can not remove the only light" << std::endl;
 		}
 	    }
+	    ImGui::SameLine();
+	    // Swap for shadow mapping light
+	    if (ImGui::Button("Swap Shadow Light"))
+	    {
+		swapShadowMapLight();;
+	    }
 	}
 
 	// --- CHUNKS
@@ -322,16 +547,23 @@ public:
 	    { // Update the chunk :D
 		update_chunks();
 	    }
-
+	    int tmp_tiles = chunk_tiles/2;
 	    ImGui::Separator();
 	    ImGui::Text("Variables below can be changed live:");
-	    ImGui::InputInt("Chunk Tiles", &chunk_tiles);
+	    ImGui::InputInt("Chunk Tiles", &tmp_tiles);
+	    chunk_tiles = tmp_tiles*2;
 	    ImGui::InputFloat("Chunk Y-Axis Offset", &chunk_y);
 	}
 
-
-	ImGui::Separator();
-	ImGui::Checkbox("PBR Shading", &m_useMaterial);
+	if (ImGui::CollapsingHeader("Rendering Settings"))
+	{
+	    ImGui::Checkbox("PBR Shading", &m_useMaterial);
+	    ImGui::Checkbox("Enable Shadows", &shadows);
+	    ImGui::Checkbox("Enable Environment Mapping", &m_useEnvironmentMapping);
+	    if (m_useEnvironmentMapping) {
+		ImGui::SliderFloat("Reflectivity", &m_reflectivity, 0.0f, 1.0f);
+	    }
+	}
 
 	ImGui::End();
     }
@@ -392,6 +624,18 @@ public:
 	glUniform3fv(m_butterflyShader.getUniformLocation("cameraPosition"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
 	glUniform1f(m_butterflyShader.getUniformLocation("metallic"), 0.2f);
 	glUniform1f(m_butterflyShader.getUniformLocation("roughness"), 0.5f);
+	glUniform1i(m_butterflyShader.getUniformLocation("isShadow"), shadows);
+
+	// Environment mapping uniforms
+	glUniform1i(m_butterflyShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping ? 1 : 0);
+	glUniform1f(m_butterflyShader.getUniformLocation("reflectivity"), m_reflectivity);
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
+	glUniform1i(m_butterflyShader.getUniformLocation("environmentMap"), 5);
+
+	// Pass the lightSpaceMatrix uniform to the shader
+	glUniformMatrix4fv(m_butterflyShader.getUniformLocation("lightSpaceMatrix"), 1, GL_FALSE,
+			   glm::value_ptr(m_lightSpaceMatrix));
 
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢔⣶⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠗⡿⣾⠀⠀
@@ -424,6 +668,11 @@ public:
 	    // Bind the butterfly texture!
 	    m_butterfly_body_texture.bind(GL_TEXTURE2);
 	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 2);
+
+	    // Bind shadow map
+	    glActiveTexture(GL_TEXTURE4);
+	    glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
+	    glUniform1i(m_butterflyShader.getUniformLocation("shadowMap"), 4);
 
 	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(bodyMvpMatrix));
 	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyModelMatrix));
@@ -468,7 +717,12 @@ public:
 		m_butterfly_texture0.bind(GL_TEXTURE1);
 	    }
 	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 1);
-	    
+	   
+	    // Bind shadow map
+	    glActiveTexture(GL_TEXTURE4);
+	    glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
+	    glUniform1i(m_butterflyShader.getUniformLocation("shadowMap"), 4);
+
 	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingMvpMatrix));
 	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingModelMatrix));
 	    glUniformMatrix3fv(m_butterflyShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(leftWingNormalMatrix));
@@ -496,7 +750,7 @@ public:
 	    // Light properties
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
-	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.position));
+	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
 	    glUniform1i(m_butterflyShader.getUniformLocation("isSpot"), li.isSpotlight);
 
 	    // Bind the butterfly texture!
@@ -509,6 +763,11 @@ public:
 		m_butterfly_texture0.bind(GL_TEXTURE1);
 	    }
 	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 1);
+
+	    // Bind shadow map
+	    glActiveTexture(GL_TEXTURE4);
+	    glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
+	    glUniform1i(m_butterflyShader.getUniformLocation("shadowMap"), 4);
 
 	    // Send NEW matrices for the second wing
 	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(rightWingMvpMatrix)); 
@@ -705,6 +964,15 @@ public:
 		     glm::value_ptr(cameras[camera_idx].cameraPos()));
 	glUniform1f(m_chunkShader.getUniformLocation("metallic"), 0.0f);
 	glUniform1f(m_chunkShader.getUniformLocation("roughness"), 0.8f);
+	glUniform1i(m_chunkShader.getUniformLocation("isShadow"), shadows);
+
+
+	// Environment mapping uniforms
+	glUniform1i(m_chunkShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping ? 1 : 0);
+	glUniform1f(m_chunkShader.getUniformLocation("reflectivity"), m_reflectivity);
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
+	glUniform1i(m_chunkShader.getUniformLocation("environmentMap"), 5); 
 
 	// Light properties
 	glUniform3fv(m_chunkShader.getUniformLocation("lightPosition"), 1,
@@ -718,6 +986,14 @@ public:
 	// Bind a texture for the chunks (using checkerboard)
 	m_chunk_texture.bind(GL_TEXTURE3);
 	glUniform1i(m_chunkShader.getUniformLocation("textureMap"), 3);
+
+	glUniformMatrix4fv(m_chunkShader.getUniformLocation("lightSpaceMatrix"), 1, GL_FALSE,
+			   glm::value_ptr(m_lightSpaceMatrix));
+
+	// Bind shadow map
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
+	glUniform1i(m_chunkShader.getUniformLocation("shadowMap"), 4);
 
 	// Matrix uniforms
 	glUniformMatrix4fv(m_chunkShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
@@ -782,7 +1058,15 @@ public:
 	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, m_butterflyOffset0, true);
 	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, m_butterflyOffset1, false);
 
-	    // Replace the chunk rendering loop in startLoop() with this code:
+	    // After updating butterfly matrices and before rendering
+	    renderShadowMap(lights[0]); // Generate shadow map from first light
+
+	    // Reset viewport for main rendering
+	    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+	    // Clear the screen
+	    glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
+	    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	    // --- Render everything!
 	    float chunkWorldSize = (chunk_size - 1) * chunk_scale; // Total size of chunks
@@ -958,16 +1242,16 @@ private:
 
     // --- Data for procedurally generated chunk!
     int chunk_seed = 15; // Must be bigger than 0
-    int chunk_hills = 25;
-    int max_hill_height = 8;
+    int chunk_hills = 3;
+    int max_hill_height = 12;
     int chunk_size = 15;
-    float chunk_y = -1.0f;
+    float chunk_y = -0.5f;
     std::vector<glm::vec3> chunk_coordinates; // Size of chunk_size^2
     glm::mat4 m_chunkMatrix { 1.0f }; // Identity Matrix
     std::optional<GPUMesh> m_chunkMesh;
     float chunk_scale = 20.0f;
     float hill_steepness = 0.575f;
-    int chunk_tiles = 50;
+    int chunk_tiles = 30; // Always needs to be even
 
     // --- All the cameras!
     std::vector<Camera> cameras;
@@ -999,6 +1283,20 @@ private:
     int m_swayAmplitude = 25;
     float m_flightAngle = 0.0f ;
     float m_flapAngle{ 0.0f }; //to make the wings flap!!
+
+    // --- Shadow mapping!
+    GLuint m_shadowMapFBO;
+    GLuint m_shadowMapTexture;
+    const int SHADOW_WIDTH = 2048;
+    const int SHADOW_HEIGHT = 2048;
+    glm::mat4 m_lightSpaceMatrix;
+    bool shadows = true;
+
+    // --- Environment mapping!
+    GLuint m_environmentMap;
+    bool m_useEnvironmentMapping { false };
+    float m_reflectivity { 0.5f };
+
 };
 
 int main()
@@ -1033,8 +1331,16 @@ int main()
     app.addLight(
 	Light(
 	    glm::vec3(1.0f, 1.0f, 1.0f), // colour
-	    glm::vec3(10.0f, 200.0f, -10.0f), // position
-	    glm::vec3(-0.3f, -1.0f, -0.2f) // forward
+	    glm::vec3(-68.61f, 135.0f, -81.0f), // position
+	    glm::vec3(-0.3f, -0.67f, 0.67f) // forward
+	)
+    );
+
+    app.addLight(
+	Light(
+	    glm::vec3(0.0f, 0.5f, 0.5f),   // white light
+	    glm::vec3(100.0f, 50.0f, 120.0f),   // position above and in front
+	    glm::vec3(0.0f, -5.0f, -5.0f)  // direction downward/forward
 	)
     );
 

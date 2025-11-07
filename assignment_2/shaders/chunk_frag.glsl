@@ -10,13 +10,10 @@ layout(std140) uniform Material
     float transparency;
 };
 
-
-
 // We use the:
 // Cook-Torrance BRDF model
 
 uniform int showNormals;
-uniform int useMaterial;
 uniform sampler2D colorMap;
 uniform sampler2D textureMap;
 

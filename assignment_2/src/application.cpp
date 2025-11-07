@@ -560,20 +560,20 @@ public:
 		ImGui::Checkbox("Show Normals", &showNormals);
 		ImGui::Separator();
 
-		ImGui::Checkbox("BlinnPhong", &m_blinnPhong);
+		ImGui::Checkbox("BlinnPhong Butterflies", &m_blinnPhong);
 		ImGui::ColorEdit3("Kd (diffuse)", glm::value_ptr(kd));
 		ImGui::ColorEdit3("Ks (specular)", glm::value_ptr(ks));
 		ImGui::SliderFloat("Shininess", &shininess, 1.0f, 128.0f);
 		ImGui::Separator();
 
-	    ImGui::Checkbox("PBR Shading", &m_PBR);
+	    ImGui::Checkbox("PBR Shading Butterflies", &m_PBR);
 		ImGui::SliderFloat("Metallic", &metallic, 0.0f, 1.0f);
 		ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
 		ImGui::ColorEdit3("Kd", glm::value_ptr(kdPBR));
 		ImGui::Separator();
 
 	    ImGui::Checkbox("Enable Shadows", &shadows);
-	    ImGui::Checkbox("Enable Environment Mapping", &m_useEnvironmentMapping);
+	    ImGui::Checkbox("Chunk Environment Mapping", &m_useEnvironmentMapping);
 	    if (m_useEnvironmentMapping) {
 		ImGui::SliderFloat("Reflectivity", &m_reflectivity, 0.0f, 1.0f);
 	    }
@@ -641,9 +641,9 @@ public:
 
 	//BlinnPhong uniforms
 	glUniform1i(m_butterflyShader.getUniformLocation("use_blinnPhong"), m_blinnPhong);
-	glUniform3fv(m_butterflyShader.getUniformLocation("kd"), 1, glm::value_ptr(kd));
-	glUniform3fv(m_butterflyShader.getUniformLocation("ks"), 1, glm::value_ptr(ks));
-	glUniform1f(m_butterflyShader.getUniformLocation("shininess"), shininess);
+	glUniform3fv(m_butterflyShader.getUniformLocation("b_kd"), 1, glm::value_ptr(kd));
+	glUniform3fv(m_butterflyShader.getUniformLocation("b_ks"), 1, glm::value_ptr(ks));
+	glUniform1f(m_butterflyShader.getUniformLocation("b_shininess"), shininess);
 
 
 	//PBR Uniforms
@@ -653,11 +653,13 @@ public:
 	glUniform3fv(m_butterflyShader.getUniformLocation("kdPBR"), 1, glm::value_ptr(kdPBR));
 
 	// Environment mapping uniforms
+	/* APPLY ONLY TO THE CHUNKS!
 	glUniform1i(m_butterflyShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping ? 1 : 0);
 	glUniform1f(m_butterflyShader.getUniformLocation("reflectivity"), m_reflectivity);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
 	glUniform1i(m_butterflyShader.getUniformLocation("environmentMap"), 5);
+	*/
 
 	// Pass the lightSpaceMatrix uniform to the shader
 	glUniformMatrix4fv(m_butterflyShader.getUniformLocation("lightSpaceMatrix"), 1, GL_FALSE,
@@ -707,11 +709,9 @@ public:
 	    {
 		m_texture.bind(GL_TEXTURE0);
 		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
-		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
 	    }
 	    else 
 	    {
-		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
 	    mesh.draw(m_butterflyShader);
 
@@ -756,11 +756,6 @@ public:
 	    {
 		m_texture.bind(GL_TEXTURE0);
 		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
-		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
-	    }
-	    else 
-	    {
-		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
 	    mesh.draw(m_butterflyShader);
 	}
@@ -804,11 +799,6 @@ public:
 	    {
 		m_texture.bind(GL_TEXTURE0);
 		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
-		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
-	    }
-	    else
-	    {
-		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
 	    mesh.draw(m_butterflyShader);
 	}  
@@ -1030,9 +1020,6 @@ public:
 			   glm::value_ptr(modelMatrix));
 	glUniformMatrix3fv(m_chunkShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
 			   glm::value_ptr(normalMatrix));
-
-	// Enable material rendering
-	glUniform1i(m_chunkShader.getUniformLocation("useMaterial"), m_useMaterial);
 
 	m_chunkMesh->draw(m_chunkShader);	
     }
@@ -1294,7 +1281,6 @@ private:
     Texture m_butterfly_body_texture;
     Texture m_texture;
     Texture m_chunk_texture;
-    bool m_useMaterial { true };
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_butterflyMatrix0 { 1.0f };

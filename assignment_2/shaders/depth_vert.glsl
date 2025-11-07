@@ -1,8 +1,8 @@
 #version 410
-uniform mat4 lightMVP;
-layout(location=0) in vec3 position;
+uniform mat4 lightSpaceMatrix;
 uniform mat4 modelMatrix;
-void main() {
-    gl_Position = lightMVP * vec4(position, 1.0);
-}
+layout(location=0) in vec3 position;
 
+void main() {
+    gl_Position = lightSpaceMatrix * modelMatrix * vec4(position, 1.0);
+}

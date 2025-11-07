@@ -9,6 +9,9 @@ layout(std140) uniform Material
     float transparency;
 };
 
+// We use the:
+// Cook-Torrance BRDF model
+
 uniform int useMaterial;
 uniform sampler2D colorMap;
 uniform sampler2D textureMap;
@@ -16,6 +19,7 @@ uniform sampler2D textureMap;
 // Shadow mapping
 uniform sampler2D shadowMap;
 uniform mat4 lightSpaceMatrix;
+uniform bool isShadow;
 
 // Light properties
 uniform vec3 lightPosition;
@@ -28,13 +32,17 @@ uniform vec3 cameraPosition;
 uniform float metallic;
 uniform float roughness;
 
+// Environment mapping
+uniform samplerCube environmentMap;
+uniform int useEnvironmentMapping;
+uniform float reflectivity;
+
 in vec3 fragPosition; 
 in vec3 fragNormal;
 in vec2 fragTexCoord;
 
 layout(location = 0) out vec4 fragColor;
 
-// Calculate shadow with PCF
 float calculateShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
     // Transform fragment position to light space
@@ -47,8 +55,11 @@ float calculateShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
     projCoords = projCoords * 0.5 + 0.5;
     
     // Check if fragment is outside light's frustum
-    if(projCoords.z > 1.0)
-        return 0.0;
+    // If outside, assume it's in shadow (or no shadow, depending on your preference)
+    if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
+       projCoords.y < 0.0 || projCoords.y > 1.0 || 
+       projCoords.z > 1.0)
+        return 1.0; // Return 1.0 for full shadow outside bounds
     
     // Get closest depth value from shadow map
     float closestDepth = texture(shadowMap, projCoords.xy).r;
@@ -57,7 +68,7 @@ float calculateShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
     float currentDepth = projCoords.z;
     
     // Calculate bias to prevent shadow acne
-    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    float bias = max(0.005 * (1.0 - dot(normal, lightDir)), 0.001);
     
     // PCF (Percentage Closer Filtering) for softer shadows
     float shadow = 0.0;
@@ -126,26 +137,51 @@ void main()
     vec3 diffuse = kD * kd / 3.14159265;
 
     // Combine lighting
+
     vec3 textureColor = texture(textureMap, fragTexCoord).rgb;
-    
+
     // Compute light attenuation
     float distance = length(lightPosition - fragPosition);
     float attenuation = 1.0 / (1.0 + 0.07 * distance + 0.017 * distance * distance);
-    
-    // Calculate shadow (ALWAYS calculate, even if not fully visible)
-    float shadow = calculateShadow(fragPosition, N, L);
+
+    // Calculate shadow
+    //float shadow = calculateShadow(fragPosition, N, L);
+    float shadow = isShadow ? calculateShadow(fragPosition, N, L) : 0.0; 
 
     // Light radiance
     vec3 lightRadiance = lightColor * attenuation;
 
-    // Combine components with shadow
-    vec3 ambient = ambientColor * textureColor;
-    vec3 diffuseSpecular = (diffuse + specular) * lightRadiance * NdotL * (1.0 - shadow * 0.7);
+    // Shadow factor
+    float shadowFactor = 1.0 - shadow * 0.7;
 
-    vec3 finalColor = ambient + diffuseSpecular;
+    // Ambient lighting - affected by light color but at reduced intensity
+    vec3 ambient = lightColor * 0.3 * textureColor * shadowFactor;
+    vec3 baseAmbient = vec3(0.2, 0.2, 0.2) * textureColor; // Minimum visibility
+
+    // Direct lighting (affected by light color and shadows)
+    vec3 directLighting = (diffuse + specular) * textureColor * lightRadiance * NdotL * shadowFactor;
+
+    vec3 finalColor = baseAmbient + ambient + directLighting;
 
     // Clamp to prevent over saturation
     finalColor = clamp(finalColor, 0.0, 1.0);
 
-    fragColor = vec4(finalColor, 1.0);
+    // Environment mapping
+    if (useEnvironmentMapping == 1) {
+	// Calculate reflection vector
+	vec3 I = normalize(fragPosition - cameraPosition);
+	vec3 R = reflect(I, N);
+	
+	// Sample the environment map
+	vec3 reflection = texture(environmentMap, R).rgb;
+	
+	// Blend reflection with existing color based on reflectivity
+	// Fresnel effect - more reflective at grazing angles
+	float fresnelFactor = pow(1.0 - max(dot(N, V), 0.0), 5.0);
+	float finalReflectivity = mix(reflectivity * 0.3, reflectivity, fresnelFactor);
+	
+	finalColor = mix(finalColor, reflection, finalReflectivity);
+    } 
+
+    fragColor = vec4(finalColor, 1.0); 
 }

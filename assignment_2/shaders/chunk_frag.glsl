@@ -1,6 +1,7 @@
 #version 410
 
 // Material properties - this should match GPUMaterial in mesh.h
+
 layout(std140) uniform Material
 {
     vec3 kd;
@@ -8,6 +9,8 @@ layout(std140) uniform Material
     float shininess;
     float transparency;
 };
+
+
 
 // We use the:
 // Cook-Torrance BRDF model
@@ -94,12 +97,16 @@ void main()
         return;
     }
     vec3 ambientColor = vec3(0.3, 0.3, 0.3);
-
+    
+    /*
     if (useMaterial == 0)
     {
         fragColor = vec4(fragNormal, 1.0f);
         return;
     }
+    */
+    
+
 
     vec3 N = normalize(fragNormal);
     vec3 L = normalize(

@@ -1,6 +1,6 @@
 #version 410
 
-// Material properties - this should match GPUMaterial in mesh.h
+// Material uniforms
 
 layout(std140) uniform Material
 {
@@ -10,8 +10,6 @@ layout(std140) uniform Material
     float transparency;
 };
 
-// We use the:
-// Cook-Torrance BRDF model
 
 uniform int showNormals;
 uniform sampler2D colorMap;
@@ -24,18 +22,18 @@ uniform sampler2D shadowMap;
 uniform mat4 lightSpaceMatrix;
 uniform bool isShadow;
 
-// Light properties
+// Light uniforms
 uniform vec3 lightPosition;
 uniform vec3 lightDirection_optional;
 uniform vec3 lightColor;
 uniform int isSpot;
 
-// PBR properties
+// PBR uniforms
 uniform vec3 cameraPosition;
 uniform float metallic;
 uniform float roughness;
 
-// Environment mapping
+// Environment mapping uniforms
 uniform samplerCube environmentMap;
 uniform int useEnvironmentMapping;
 uniform float reflectivity;
@@ -50,32 +48,32 @@ layout(location = 0) out vec4 fragColor;
 
 float calculateShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
-    // Transform fragment position to light space
+    //  fragment position to light space
     vec4 fragPosLightSpace = lightSpaceMatrix * vec4(fragPos, 1.0);
     
     // Perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     
-    // Transform to [0,1] range
+    // Transform to correct range
     projCoords = projCoords * 0.5 + 0.5;
     
-    // Check if fragment is outside light's frustum
-    // If outside, assume it's in shadow (or no shadow, depending on your preference)
+    // Check if fragment is outside light frustrum
+    // If outside, shadow
     if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
        projCoords.y < 0.0 || projCoords.y > 1.0 || 
        projCoords.z > 1.0)
-        return 1.0; // Return 1.0 for full shadow outside bounds
+        return 1.0; 
     
-    // Get closest depth value from shadow map
+    // closest depth value from shadow map
     float closestDepth = texture(shadowMap, projCoords.xy).r;
     
-    // Get depth of current fragment from light's perspective
+    // depth of current fragment from light's perspective
     float currentDepth = projCoords.z;
     
-    // Calculate bias to prevent shadow acne
+    //  bias to prevent shadow acne
     float bias = max(0.005 * (1.0 - dot(normal, lightDir)), 0.001);
     
-    // PCF (Percentage Closer Filtering) for softer shadows
+    // PCF for softer shadows
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
     for(int x = -1; x <= 1; ++x)
@@ -99,32 +97,25 @@ void main()
     }
     vec3 ambientColor = vec3(0.3, 0.3, 0.3);
     
-    /*
-    if (useMaterial == 0)
-    {
-        fragColor = vec4(fragNormal, 1.0f);
-        return;
-    }
-    */
     
-    // Sample normal from normal map and apply normal mapping
+    // sample normal from normal map and apply normal mapping
     vec3 N;
     if (useNormalMapping == 1) {
-        // Repeat the normal map texture coordinates
-        vec2 repeatedTexCoord = fragTexCoord * 10.0; // Adjust repetition factor as needed
+        // repeat the normal map texture coordinates
+        vec2 repeatedTexCoord = fragTexCoord * 10.0; // adjust repetition factor as needed
         
         // Sample normal map
         vec3 normalMapSample = texture(normalMap, repeatedTexCoord).rgb;
         // Transform from [0,1] to [-1,1]
         normalMapSample = normalMapSample * 2.0 - 1.0;
         
-        // Construct TBN matrix
+        // build TBN matrix
         vec3 T = normalize(fragTangent);
         vec3 B = normalize(fragBitangent);
         vec3 Nbase = normalize(fragNormal);
         mat3 TBN = mat3(T, B, Nbase);
         
-        // Transform normal from tangent space to world space
+        // transoform normal from tangent space to world space
         N = normalize(TBN * normalMapSample);
     } else {
         N = normalize(fragNormal);
@@ -146,13 +137,13 @@ void main()
     vec3 F0 = mix(vec3(0.04), kd, metallic);
     vec3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
 
-    // Normal Distribution Function (GGX)
+    // Normal Distributoin for GGX
     float alpha = roughness * roughness;
     float alpha2 = alpha * alpha;
     float denom = (NdotH * NdotH) * (alpha2 - 1.0) + 1.0;
     float D = alpha2 / (3.14159265 * denom * denom);
 
-    // Geometry (Smith GGX)
+    // Smith
     float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
     float G_V = NdotV / (NdotV * (1.0 - k) + k);
     float G_L = NdotL / (NdotL * (1.0 - k) + k);
@@ -172,7 +163,7 @@ void main()
 
     vec3 textureColor = texture(textureMap, fragTexCoord).rgb;
 
-    // Compute light attenuation
+    //  light attenuation
     float distance = length(lightPosition - fragPosition);
     float attenuation = 1.0 / (1.0 + 0.07 * distance + 0.017 * distance * distance);
 
@@ -186,29 +177,29 @@ void main()
     // Shadow factor
     float shadowFactor = 1.0 - shadow * 0.7;
 
-    // Ambient lighting - affected by light color but at reduced intensity
+    // Ambient lighting
     vec3 ambient = lightColor * 0.3 * textureColor * shadowFactor;
     vec3 baseAmbient = vec3(0.2, 0.2, 0.2) * textureColor; // Minimum visibility
 
-    // Direct lighting (affected by light color and shadows)
+    // direct lighting (affected by light color and shadows)
     vec3 directLighting = (diffuse + specular) * textureColor * lightRadiance * NdotL * shadowFactor;
 
     vec3 finalColor = baseAmbient + ambient + directLighting;
 
-    // Clamp to prevent over saturation
+    // clamp to prevent over saturation
     finalColor = clamp(finalColor, 0.0, 1.0);
 
-    // Environment mapping
+    // if environment mapping
     if (useEnvironmentMapping == 1) {
-	// Calculate reflection vector
+	// we compute reflection vector
 	vec3 I = normalize(fragPosition - cameraPosition);
 	vec3 R = reflect(I, N);
 	
-	// Sample the environment map
+	// sample the environment map
 	vec3 reflection = texture(environmentMap, R).rgb;
 	
-	// Blend reflection with existing color based on reflectivity
-	// Fresnel effect - more reflective at grazing angles
+	// blend reflection with existing color based on reflectivity
+	// fresnel effect: more reflective at grazing angles
 	float fresnelFactor = pow(1.0 - max(dot(N, V), 0.0), 5.0);
 	float finalReflectivity = mix(reflectivity * 0.3, reflectivity, fresnelFactor);
 	

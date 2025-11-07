@@ -34,9 +34,7 @@ const float CAMERA_FOV = glm::radians(60.0f);
 float CAMERA_ASPECT_RATIO = static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
 float DISTANCE_CLIPPING = 10000000.0f;
 
-// Just for the sake of clarity;
-// Define the contents of an object 
-// file (list of meshes) as what it is;
+
 using ObjectFile = std::vector<GPUMesh>;
 
 class Application {
@@ -49,7 +47,7 @@ public:
         , m_butterfly_body_texture(RESOURCE_ROOT "resources/body-texture.png")
         , m_chunk_texture(RESOURCE_ROOT "resources/chunk-texture.png")
         , m_chunk_normal(RESOURCE_ROOT "resources/chunk-normal.png")
-    { // Initialize the application
+    { // boiler plate...
         m_window.registerKeyCallback([this](int key, int scancode, int action, int mods) {
             if (action == GLFW_PRESS)
                 onKeyPressed(key, mods);
@@ -64,10 +62,11 @@ public:
                 onMouseReleased(button, mods);
         });
 
-	// Initialize the meshes
+	// boiler plate the meshes
 	butterfly_body_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/butterfly-body.obj");
 	butterfly_wing_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/butterfly-wings.obj");
 
+	// boiler plate for shaders....
         try {
             ShaderBuilder butterflyBuilder;
             butterflyBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
@@ -93,7 +92,7 @@ public:
             std::cerr << e.what() << std::endl;
         }
 
-	// Load the textures!
+	// load textures
 	initShadowMapping();	
 	initEnvironmentMap();
 	initSkybox();
@@ -104,7 +103,7 @@ public:
 	glGenTextures(1, &m_environmentMap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
 
-	// Skybox face paths
+	// Skybox (environment mapping)
 	std::vector<std::string> faces = {
 	    RESOURCE_ROOT "resources/skybox/right.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_X
 	    RESOURCE_ROOT "resources/skybox/left.png",    // GL_TEXTURE_CUBE_MAP_NEGATIVE_X
@@ -117,14 +116,9 @@ public:
 	// Load each face
 	for (unsigned int i = 0; i < faces.size(); i++)
 	{
-	    // Use the Texture class to load the image
 	    try {
 		Texture tempTex(faces[i]);
-		
-		// Get image data from the texture
-		// Note: You'll need to access the texture's internal data
-		// For now, we'll load using stb_image directly
-		
+				
 		int width, height, nrChannels;
 		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
 		
@@ -155,7 +149,7 @@ public:
 	    }
 	}
 
-	// Set cubemap texture parameters
+	// setting cubemap texture parameters
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -168,7 +162,7 @@ public:
     void initSkybox()
     {
 
-	// --- Create Skybox VAO/VBO ---
+	// this is they skybow vao
 	float skyboxVertices[] = {
 	    -1.0f,  1.0f, -1.0f,  -1.0f, -1.0f, -1.0f,   1.0f, -1.0f, -1.0f,
 	     1.0f, -1.0f, -1.0f,   1.0f,  1.0f, -1.0f,  -1.0f,  1.0f, -1.0f,
@@ -198,12 +192,8 @@ public:
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glBindVertexArray(0);
 
-	// --- Load Skybox Shader ---
-	//m_skyboxShader.bind();
-	//glActiveTexture(GL_TEXTURE5);
-	//glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
-	//glUniform1i(m_skyboxShader.getUniformLocation("skybox"), 5);
-	
+
+	// the shader corresponding for the environment map	
 	ShaderBuilder skyboxBuilder;
 	skyboxBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl");
 	skyboxBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
@@ -213,10 +203,10 @@ public:
 
     void initShadowMapping()
     {
-	// Create framebuffer
+	// function that we use for shadow mapping
 	glGenFramebuffers(1, &m_shadowMapFBO);
 	
-	// Create depth texture
+	// we create depth texture
 	glGenTextures(1, &m_shadowMapTexture);
 	glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 
@@ -228,13 +218,13 @@ public:
 	float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 	
-	// Attach depth texture to framebuffer
+	// we link depth texture to framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, m_shadowMapFBO);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_shadowMapTexture, 0);
 	glDrawBuffer(GL_NONE);
 	glReadBuffer(GL_NONE);
 	
-	// Check if framebuffer is complete
+	// just in case if framebuffer is complete
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 	    std::cerr << "Shadow framebuffer not complete!" << std::endl;
 	
@@ -249,16 +239,16 @@ public:
 	glBindFramebuffer(GL_FRAMEBUFFER, m_shadowMapFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	
-	// Enable front face culling to reduce shadow acne
+	//  good practice to avoid shadow acne
 	glCullFace(GL_FRONT);
 	
 	m_shadowShader.bind();
 	
-	// Render butterflies to shadow map
+	// rendering butterflies for the shadows
 	renderButterflyDepth(m_butterflyMatrix0);
 	renderButterflyDepth(m_butterflyMatrix1);
 	
-	// Render chunks to shadow map
+	// also the mountains, they deserve to have shadows too
 	float chunkWorldSize = (chunk_size - 1) * chunk_scale;
 	for (int tz = -chunk_tiles / 2; tz < chunk_tiles / 2; tz++)
 	{
@@ -288,14 +278,16 @@ public:
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
     } 
 
-    glm::mat4 calculateLightSpaceMatrix(const Light& light)
+	// in this function we compute mvp matrices for the shadow, the function is used just above
+
+	glm::mat4 calculateLightSpaceMatrix(const Light& light)
     {
 	if (light.isSpotlight == false)
 	{
 	    glm::vec3 lightDir = glm::normalize(light.forward);
-	    glm::vec3 lightPos = -lightDir * 100.0f; // Closer light position
+	    glm::vec3 lightPos = -lightDir * 100.0f; 
 	    
-	    // Tighter ortho bounds for better shadow resolution
+	    // we opted for tighter orthogonal bounds for good shadow resolution
 	    glm::mat4 lightProjection = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, 0.1f, 300.0f);
 	    glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	    
@@ -315,7 +307,7 @@ public:
     {
 	m_shadowShader.bind();
 	
-	// Body
+	// this part is for the body of the butterfly
 	glUniformMatrix4fv(m_shadowShader.getUniformLocation("lightSpaceMatrix"), 
 			   1, GL_FALSE, glm::value_ptr(m_lightSpaceMatrix));
 	glUniformMatrix4fv(m_shadowShader.getUniformLocation("modelMatrix"), 
@@ -326,7 +318,7 @@ public:
 	    mesh.draw(m_shadowShader);
 	}
 	
-	// Left wing
+	// for the left wing
 	glm::mat4 leftWingModel = glm::rotate(modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
 	glUniformMatrix4fv(m_shadowShader.getUniformLocation("modelMatrix"), 
 			   1, GL_FALSE, glm::value_ptr(leftWingModel));
@@ -336,7 +328,7 @@ public:
 	    mesh.draw(m_shadowShader);
 	}
 	
-	// Right wing
+	// for the right wing
 	glm::mat4 rightWingModel = glm::translate(
 	    glm::rotate(modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),
 	    glm::vec3(0.3f, 0.1f, 0.0f)
@@ -395,26 +387,29 @@ public:
     //⠀⠀⠀⠀⠀⠙⢦⣸⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣤⡤⠴⠒⠚⠉⠉⠀⠀⠀⠀⠈⠙⢦⡀⢻⣿⡄⠀⠻⣦⣀⠀⠀⠀⠀⢀⣠⡤⠚⢫⣣⣾⣿⡟⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
     //⠀⠀⠀⠀⠀⠀⠀⠙⠒⠒⠒⠒⠒⠋⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⢿⣿⣆⡀⠀⠉⠙⠒⠲⠚⠉⣀⣠⣴⣾⡿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
     //⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣻⣿⣶⣤⣤⣴⣶⣶⣿⣿⣿⠛⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+	
     void initCamera(glm::vec3& position, glm::vec3& forward, bool isInteractive)
-    { // Initialize the camera
-	// Create new camera
+    { 
+	
 	Camera c = Camera(&m_window, position, forward);
-	// Initialize the active camera index to be zero
+	//create cam
 	camera_idx = 0;
 	c.setUserInteraction(isInteractive);
-	// Add camera to the list of cameras
+	// add camera to the list of cameras
 	cameras.push_back(c);
     }
 
+	//to add a cam
     void addCamera(glm::vec3& position, glm::vec3& forward, bool isInteractive)
-    { // Add a new camera
+    { 
 	Camera c = Camera(&m_window, position, forward);
 	c.setUserInteraction(isInteractive);
 	cameras.push_back(c);
     }
 
+	// Change the camera used to the idx!
     void changeCamera(uint32_t idx)
-    { // Change the camera used to the idx!
+    { 
 	if (idx < cameras.size())
 	{
 	    camera_idx = idx;
@@ -441,8 +436,9 @@ public:
     // |     |   |     |   |     |   |     |   |     p   |     |
     // |     |   |     |   |     |   |     |   |     x   |     |
     // '-._,-'   '-._,-'   '-._,-'   '-._,-'   '-._,-"   '-._,-'
+	// Create and add a new light
     void addLight(Light li)
-    { // Create and add a new spotlight
+    { 
 	lights.push_back(li);
     }
 
@@ -459,6 +455,7 @@ public:
 	    --selectedLightIndex;
     }
 
+	//we only implemented shadows for unique light source
     void swapShadowMapLight()
     {
 	if (selectedLightIndex == 0)
@@ -470,23 +467,22 @@ public:
 	selectedLightIndex = 0;
     }
 
-    // --- Controls!!!
+    // Controls!!!
     void imgui()
-    { // Section for user interface!
-	// Use ImGui for easy input/output of ints, floats, strings, etc...
+    { 
 	ImGui::Begin("Window");
 
-	// --- ANIMATION
+	// Flight of the butterflies
 	if (ImGui::CollapsingHeader("Butterfly Parameters"))
 	{
-	    ImGui::Text("Blue Orbit Offset");
+	    ImGui::Text("Blue Butterfly Orbit Offset");
 	    ImGui::InputFloat("BX", &m_butterflyOffset0.x);
 	    ImGui::InputFloat("BY", &m_butterflyOffset0.y);
 	    ImGui::InputFloat("BZ", &m_butterflyOffset0.z);
 
 	    ImGui::Separator();
 	    
-	    ImGui::Text("Redd Orbit Offset");
+	    ImGui::Text("Red Butterfly Orbit Offset");
 	    ImGui::InputFloat("RX", &m_butterflyOffset1.x);
 	    ImGui::InputFloat("RY", &m_butterflyOffset1.y);
 	    ImGui::InputFloat("RZ", &m_butterflyOffset1.z);
@@ -499,7 +495,7 @@ public:
 	    ImGui::SliderInt("Speed", &m_flightSpeed, 1, 100);
 	}
 
-	// --- LIGHTS
+	// lights, classic
 
 	if (ImGui::CollapsingHeader("Scene Lightning"))
 	{
@@ -522,7 +518,6 @@ public:
 		selectedLightIndex = static_cast<size_t>(tempSelectedItem);
 	    }
 
-	    // Properties for selected child
 	    ImGui::BeginChild("##Container", ImVec2(0.0f, 260.0f), ImGuiWindowFlags_AlwaysUseWindowPadding);
 	    ImGui::Text("Properties");
 
@@ -531,7 +526,6 @@ public:
 	    ImGui::InputFloat("Position Y", &lights[selectedLightIndex].position.y);
 	    ImGui::InputFloat("Position Z", &lights[selectedLightIndex].position.z);
 
-	    // Change selected light position
 	    ImGui::Text("");
 
 	    // Checkbox for spotlight
@@ -589,8 +583,9 @@ public:
 	    }
 	}
 
-	// --- CHUNKS
-	
+
+
+	// Mountain chunks!!!!
 	if (ImGui::CollapsingHeader("Chunk Properties"))
 	{
 	    int tmp_height = max_hill_height;
@@ -603,7 +598,7 @@ public:
 		max_hill_height = tmp_height;
 
 	    ImGui::InputInt("Chunk Size", &chunk_size);
-	    //ImGui::SliderFloat("Chunk Scale", &chunk_scale, 0.1f, 100.0f);
+	    //ImGui::SliderFloat("Chunk Scale", &chunk_scale, 0.1f, 100.0f);   
 	    ImGui::SliderFloat("Bezier Hill Steepness", &hill_steepness, 0.0f, 3.0f);
 
 	    ImGui::Separator();
@@ -628,6 +623,7 @@ public:
 
 	if (ImGui::CollapsingHeader("Rendering Settings"))
 	{
+		// shading related stuff Blinn Phong and Cook torrance
 		ImGui::Checkbox("Show Normals", &showNormals);
 		ImGui::Separator();
 
@@ -658,7 +654,7 @@ public:
 	    glm::vec3 centerOffset, 
 	    bool clockWise
     )
-    { // Function to update the butterfly movement
+    { // Function to update the butterfly's flapping and flight
 	
 	float angle = clockWise ? -m_flightAngle : m_flightAngle;
 
@@ -666,29 +662,29 @@ public:
 	float new_z = cos(angle) * m_flightRadius;
 	float new_y = sin(angle * 2.0f) * m_swayAmplitude; // amplitude ~ 0.2f–0.5f
 
-	// Compute translation matrix
+	// we compute the translation matrix, the whole butterfly moves (in a circle)
 	glm::mat4 translateMatrix = glm::translate(
 	    glm::mat4(1.0f),
 	    glm::vec3(new_x, new_y, new_z) + centerOffset
 	);
 
-	// Compute direction (tangent to flight circle)
+	// we compute the direction (tangent to flight circle)
 	glm::vec3 direction = clockWise? 
 	    glm::normalize(glm::vec3(cos(angle), 0.0f, -sin(angle)))
 	    : glm::normalize(glm::vec3(-cos(angle), 0.0f, sin(angle)));
 	    
-	// Compute right and up vectors
+	// we compute right and up vectors
 	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 	glm::vec3 right = glm::normalize(glm::cross(up, direction));
 	up = glm::cross(direction, right);
 
-	// Build rotation matrix so butterfly faces flight direction
+	// This is the rotation matrix so butterfly faces flight direction and doesnt just translate
 	glm::mat4 rotationMatrix(1.0f);
 	rotationMatrix[0] = glm::vec4(right, 0.0f);
 	rotationMatrix[1] = glm::vec4(up, 0.0f);
 	rotationMatrix[2] = glm::vec4(direction, 0.0f);
 
-	// Combine translation and rotation
+	// we translation and rotation
 	return (translateMatrix * rotationMatrix);
     }
 
@@ -698,13 +694,14 @@ public:
 	    Light li, 
 	    bool isBlue
     )
-    { // Function to render our butterfly for the current light
+    { // THE function to render our butterfly for the current light
 
-	// --- Butterfly Body Calculation
+	//  Body Matrices Calculation
 	glm::mat4 bodyModelMatrix = modelMatrix;
 	glm::mat4 bodyMvpMatrix = viewProjMatrix * bodyModelMatrix; 
 	glm::mat3 bodyNormalMatrix = glm::inverseTranspose(glm::mat3(bodyModelMatrix));
 
+	//Just uniforms
 	m_butterflyShader.bind();
 	glUniform3fv(m_butterflyShader.getUniformLocation("cameraPosition"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
 	glUniform1i(m_butterflyShader.getUniformLocation("isShadow"), shadows);
@@ -723,18 +720,15 @@ public:
 	glUniform1f(m_butterflyShader.getUniformLocation("roughness"), roughness);
 	glUniform3fv(m_butterflyShader.getUniformLocation("kdPBR"), 1, glm::value_ptr(kdPBR));
 
-	// Environment mapping uniforms
-	/* APPLY ONLY TO THE CHUNKS!
-	glUniform1i(m_butterflyShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping ? 1 : 0);
-	glUniform1f(m_butterflyShader.getUniformLocation("reflectivity"), m_reflectivity);
-	glActiveTexture(GL_TEXTURE5);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
-	glUniform1i(m_butterflyShader.getUniformLocation("environmentMap"), 5);
-	*/
 
-	// Pass the lightSpaceMatrix uniform to the shader
+	// uniform for lightSpaceMatrix 
 	glUniformMatrix4fv(m_butterflyShader.getUniformLocation("lightSpaceMatrix"), 1, GL_FALSE,
 			   glm::value_ptr(m_lightSpaceMatrix));
+
+	
+
+
+
 
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢔⣶⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠗⡿⣾⠀⠀
@@ -753,26 +747,27 @@ public:
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣱⡇⣦⢾⣾⠿⠟⠿⠷⠷⣻⠧⠀⠀⠀⠀⠀⠀⠀⠀
 	//⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠻⠽⠞⠊⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 	
-	// --- RENDER BUTTERFLY BODY MESHES
+	// renedering body meshes
 	for (GPUMesh& mesh : butterfly_body_meshes)
 	{
 	    m_butterflyShader.bind();
 
-	    // Light properties
+	    // Uniforms for light
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
 	    glUniform1i(m_butterflyShader.getUniformLocation("isSpot"), li.isSpotlight);
 
-	    // Bind the butterfly texture!
+	    // binding the butterfly texture
 	    m_butterfly_body_texture.bind(GL_TEXTURE2);
 	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 2);
 
-	    // Bind shadow map
+	    // binding the shadow map
 	    glActiveTexture(GL_TEXTURE4);
 	    glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
 	    glUniform1i(m_butterflyShader.getUniformLocation("shadowMap"), 4);
 
+		//matrix uniforms
 	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(bodyMvpMatrix));
 	    glUniformMatrix4fv(m_butterflyShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyModelMatrix));
 	    glUniformMatrix3fv(m_butterflyShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(bodyNormalMatrix));
@@ -788,7 +783,7 @@ public:
 
 	}
 
-	// --- RENDER BUTTERFLY WINGS MESHES
+	// Rendering the wings (separately)
 
 	glm::mat4 leftWingModelMatrix = glm::rotate(modelMatrix, m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f));
 	glm::mat4 leftWingMvpMatrix = viewProjMatrix * leftWingModelMatrix; 
@@ -798,7 +793,7 @@ public:
 	{
 	    m_butterflyShader.bind();
 
-	    // Light properties
+	    // Light uniforms
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
@@ -815,7 +810,7 @@ public:
 	    }
 	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 1);
 	   
-	    // Bind shadow map
+	    // we bind the shadow map
 	    glActiveTexture(GL_TEXTURE4);
 	    glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
 	    glUniform1i(m_butterflyShader.getUniformLocation("shadowMap"), 4);
@@ -831,6 +826,8 @@ public:
 	    mesh.draw(m_butterflyShader);
 	}
     
+
+	// same thing for other wing
 	glm::mat4 rightWingModelMatrix = glm::translate(glm::rotate(modelMatrix, glm::radians(104.0f) - m_flapAngle, glm::vec3(0.0f, 0.0f, 1.0f)),glm::vec3(0.3f, 0.1f, 0.0f));
 	glm::mat4 rightWingMvpMatrix = viewProjMatrix * rightWingModelMatrix;
 	glm::mat3 rightWingNormalMatrix = glm::inverseTranspose(glm::mat3(rightWingModelMatrix));
@@ -839,13 +836,13 @@ public:
 	{
 	    m_butterflyShader.bind(); 
 
-	    // Light properties
+	    // Light uniforms
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightPosition"), 1, glm::value_ptr(li.position));
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightDirection_optional"), 1, glm::value_ptr(li.forward));
 	    glUniform3fv(m_butterflyShader.getUniformLocation("lightColor"), 1, glm::value_ptr(li.color));
 	    glUniform1i(m_butterflyShader.getUniformLocation("isSpot"), li.isSpotlight);
 
-	    // Bind the butterfly texture!
+	    // Bind the butterfly texture!.........
 	    if (isBlue)
 	    {
 		m_butterfly_texture.bind(GL_TEXTURE1);
@@ -856,7 +853,7 @@ public:
 	    }
 	    glUniform1i(m_butterflyShader.getUniformLocation("textureMap"), 1);
 
-	    // Bind shadow map
+	    // yaaay shadow map
 	    glActiveTexture(GL_TEXTURE4);
 	    glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
 	    glUniform1i(m_butterflyShader.getUniformLocation("shadowMap"), 4);
@@ -875,6 +872,8 @@ public:
 	}  
     }
 
+
+	// we generated the mountains with bezier curves
     glm::vec2 bezier_get_point(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, glm::vec2 P3, float t)
     {
 	float u = 1.0f - t;
@@ -907,7 +906,7 @@ public:
 	chunk_coordinates.clear();
 	chunk_coordinates.reserve(chunk_size * chunk_size);
 
-	// --- Step 1: Base grid, scaled
+	// Base grid, scaled
 	for (int z = 0; z < chunk_size; z++)
 	{
 	    for (int x = 0; x < chunk_size; x++)
@@ -920,7 +919,7 @@ public:
 	    }
 	}
 
-	// --- Step 2: Generate hills
+	// Generating the hills
 	srand(chunk_seed);
 	for (int h = 0; h < chunk_hills; h++)
 	{
@@ -950,14 +949,14 @@ public:
 		    glm::vec2 point = bezier_get_point(P0, P1, P2, P3, t);
 		    float influence = point.y;
 		    
-		    // Calculate edge blending factor, this is to make sure the chunk is tileable!
+		    // Calculate edge blending factor, to make sure the chunk is tileable!
 		    float edgeBlendDistance = chunk_size * 0.15f * chunk_scale; // Blend over 15% of chunk
 		    float distToEdgeX = glm::min(coord.x, (chunk_size - 1) * chunk_scale - coord.x);
 		    float distToEdgeZ = glm::min(coord.z, (chunk_size - 1) * chunk_scale - coord.z);
 		    float distToEdge = glm::min(distToEdgeX, distToEdgeZ);
 		    
 		    float edgeFade = glm::clamp(distToEdge / edgeBlendDistance, 0.0f, 1.0f);
-		    edgeFade = edgeFade * edgeFade * (3.0f - 2.0f * edgeFade); // Smoothstep
+		    edgeFade = edgeFade * edgeFade * (3.0f - 2.0f * edgeFade); // smoothstep
 		    
 		    coord.y += hillHeight * influence * edgeFade;
 		}
@@ -966,6 +965,7 @@ public:
 
     }
 
+	//building the meshes
     void build_chunk_mesh()
     { 
 
@@ -975,7 +975,7 @@ public:
 	vertices.reserve(chunk_coordinates.size());
 	triangles.reserve((chunk_size - 1) * (chunk_size - 1) * 2);
 
-	// --- Step 1: Vertices
+	// Vertices
 	for (const auto& coord : chunk_coordinates)
 	{
 	    vertices.push_back({
@@ -986,7 +986,7 @@ public:
 	    });
 	}
 
-	// --- Step 2: Triangle indices
+	// Triangle indices
 	for (int z = 0; z < chunk_size - 1; z++)
 	{
 	    for (int x = 0; x < chunk_size - 1; x++)
@@ -1001,7 +1001,7 @@ public:
 	    }
 	}
 
-	// --- Step 3: Normals
+	// Normals
 	for (auto& v : vertices) v.normal = glm::vec3(0.0f);
 
 	for (const auto& tri : triangles)
@@ -1023,7 +1023,7 @@ public:
 		v.normal = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
-	// --- Step 4: Create mesh
+	// Creating the mesh
 	Mesh cpuMesh;
 	cpuMesh.vertices = std::move(vertices);
 	cpuMesh.triangles = std::move(triangles);
@@ -1036,17 +1036,18 @@ public:
 
     }
 
+	//rendering
     void render_chunk(const glm::mat4& viewProjMatrix, glm::mat4 modelMatrix, Light li)
     { 
 	if (!m_chunkMesh.has_value()) return;
 
-	// Calculate MVP matrix correctly
+	// computing MVP matrix 
 	glm::mat4 mvpMatrix = viewProjMatrix * modelMatrix; 
 	glm::mat3 normalMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
 	m_chunkShader.bind();
 
-	// Camera and material properties
+	// uniforms 
 	glUniform3fv(m_chunkShader.getUniformLocation("cameraPosition"), 1,
 		     glm::value_ptr(cameras[camera_idx].cameraPos()));
 	glUniform1f(m_chunkShader.getUniformLocation("metallic"), metallic);
@@ -1063,7 +1064,7 @@ public:
 	glUniform1i(m_chunkShader.getUniformLocation("showNormals"), showNormals);
 
 
-	// Light properties
+	// Light uniforms
 	glUniform3fv(m_chunkShader.getUniformLocation("lightPosition"), 1,
 		     glm::value_ptr(li.position));
 	glUniform3fv(m_chunkShader.getUniformLocation("lightDirection_optional"), 1,
@@ -1072,7 +1073,7 @@ public:
 		     glm::value_ptr(li.color));
 	glUniform1i(m_chunkShader.getUniformLocation("isSpot"), li.isSpotlight);
 
-	// Bind a texture for the chunks (using checkerboard)
+	// texture for the chunks (using checkerboard)
 	m_chunk_texture.bind(GL_TEXTURE3);
 	glUniform1i(m_chunkShader.getUniformLocation("textureMap"), 3);
 
@@ -1127,13 +1128,8 @@ public:
             // Clear the screen
             glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            // ...
             glEnable(GL_DEPTH_TEST);
 
-            //const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_butterflyMatrix;
-            // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
-            // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
 
 	    const glm::mat4 projectionMatrix = glm::perspective(
 		    CAMERA_FOV, 
@@ -1160,10 +1156,10 @@ public:
 		glUniformMatrix4fv(m_skyboxShader.getUniformLocation("projection"), 1, GL_FALSE,
 				   glm::value_ptr(projectionMatrix));
 
-		// Bind the cube VAO
+		// bind the cube VAO
 		glBindVertexArray(m_skyboxVAO);
 
-		// Bind the same environment cubemap texture
+		// bind  the same environment cubemap texture
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
 		glUniform1i(m_skyboxShader.getUniformLocation("skybox"), 5);
@@ -1176,26 +1172,26 @@ public:
 	    }
 
 
-	    // Update butterflies
+	    // Update butterflies (they fly and never stop flying!!!)
 	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, m_butterflyOffset0, true);
 	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, m_butterflyOffset1, false);
 
-	    // After updating butterfly matrices and before rendering
-	    renderShadowMap(lights[0]); // Generate shadow map from first light
+	    // after updating butterfly matrices and before rendering
+	    renderShadowMap(lights[0]); // generate shadow map from first light
 
-	    // Reset viewport for main rendering
+	    // reset viewport for main rendering
 	    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	    // Clear the screen
 	    //glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
 	    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	    // --- Render everything!
-	    float chunkWorldSize = (chunk_size - 1) * chunk_scale; // Total size of chunks
+	    // Render everything!
+	    float chunkWorldSize = (chunk_size - 1) * chunk_scale; // this is basically the total size of chunks
 
 	    for (Light li : lights)
 	    {
-		// --- Render the butterflies
+		// Render the butterflies
 		render_butterfly(viewProjMatrix, m_butterflyMatrix0, li, true);
 		render_butterfly(viewProjMatrix, m_butterflyMatrix1, li, false);
 
@@ -1209,8 +1205,8 @@ public:
 			    tz * chunkWorldSize
 			);
 
-			// Determine rotation based on tile position for variety
-			// This creates a pattern: 0°, 90°, 180°, 270° rotation
+			// We rotate the mountain based on tile position, for variety
+			// so we have a pattern: 0°, 90°, 180°, 270° rotation
 			int rotationIndex = (tx + tz) % 4;
 			float rotationAngle = glm::radians(90.0f * rotationIndex);
 
@@ -1221,7 +1217,7 @@ public:
 			    chunkWorldSize * 0.5f
 			);
 
-			// Model matrix: translate to position, then rotate around Y-axis
+			// Model matrix is basically: translate to position, then rotate around Y axis
 			glm::mat4 chunkModel = glm::mat4(1.0f);
 			chunkModel = glm::translate(chunkModel, tileOffset);
 			chunkModel = glm::translate(chunkModel, chunkCenter);
@@ -1233,7 +1229,7 @@ public:
 		}
 	    }
 	    
-	    // --- Update the main camera input
+	    // Update the main camera input
 	    (cameras[camera_idx]).updateInput();
 
 	    if (DEBUG)
@@ -1257,18 +1253,13 @@ public:
         }
     }
 
-    // In here you can handle key presses
-    // key - Integer that corresponds to numbers in https://www.glfw.org/docs/latest/group__keys.html
-    // mods - Any modifier keys pressed, like shift or control
+
     void onKeyPressed(int key, int mods)
     {
 	if (DEBUG)
 	    std::cout << "Key pressed: " << key << std::endl;
     }
 
-    // In here you can handle key releases
-    // key - Integer that corresponds to numbers in https://www.glfw.org/docs/latest/group__keys.html
-    // mods - Any modifier keys pressed, like shift or control
     void onKeyReleased(int key, int mods)
     {
 
@@ -1350,6 +1341,7 @@ public:
 	    std::cout << "Released mouse button: " << button << std::endl;
     }
 
+
 private:
     Window m_window;
 
@@ -1358,31 +1350,31 @@ private:
     Shader m_chunkShader;
     Shader m_shadowShader;
 
-    // --- Meshes of an object file!
+    // Meshes of an object file!
     ObjectFile butterfly_body_meshes;
     ObjectFile butterfly_wing_meshes;
 
-    // --- Data for procedurally generated chunk!
+    // data for procedurally generated mountains!
     int chunk_seed = 15; // Must be bigger than 0
     int chunk_hills = 3;
     int max_hill_height = 12;
     int chunk_size = 15;
     float chunk_y = -0.5f;
     std::vector<glm::vec3> chunk_coordinates; // Size of chunk_size^2
-    glm::mat4 m_chunkMatrix { 1.0f }; // Identity Matrix
+    glm::mat4 m_chunkMatrix { 1.0f }; // identity 
     std::optional<GPUMesh> m_chunkMesh;
     float chunk_scale = 20.0f;
     float hill_steepness = 0.575f;
     int chunk_tiles = 30; // Always needs to be even
 
-    // --- All the cameras!
+    // All the cameras!
     std::vector<Camera> cameras;
     uint32_t camera_idx;
 
-    // --- All the lights!
+    // All the lights!
     std::vector<Light> lights;
 
-    // --- All the textures!
+    // All the textures!
     Texture m_butterfly_texture;
     Texture m_butterfly_texture0;
     Texture m_butterfly_body_texture;
@@ -1399,14 +1391,14 @@ private:
     // Lights selected Index
     int selectedLightIndex = 0;
 
-    // --- All the animation stuff!
+    //  All the animation stuff!
     int m_flightSpeed = 35;
     int m_flightRadius = 50;
     int m_swayAmplitude = 25;
     float m_flightAngle = 0.0f ;
     float m_flapAngle{ 0.0f }; //to make the wings flap!!
 
-    // --- Shadow mapping!
+    // Shadow mapping!
     GLuint m_shadowMapFBO;
     GLuint m_shadowMapTexture;
     const int SHADOW_WIDTH = 2048;
@@ -1415,18 +1407,18 @@ private:
     bool shadows = true;
     bool showNormals = false;
 
-    // --- Environment mapping!
+    // Environment mapping!
     GLuint m_environmentMap;
     bool m_useEnvironmentMapping { true };
     float m_reflectivity { 0.5f };
     bool m_useNormalMapping { true };
 
-    // Skybox resources
+    // Skybox 
     GLuint m_skyboxVAO;
     GLuint m_skyboxVBO;
     Shader m_skyboxShader; // Assuming you have a Shader class wrapper
     
-    //BlinnPhong
+    //BlinnPhong 
     bool m_blinnPhong = false;
     glm::vec3 kd = glm::vec3(0.5f);
     glm::vec3 ks = glm::vec3(0.5f);
@@ -1442,10 +1434,8 @@ private:
 
 int main()
 {
-    // --- Create the app
     Application app;
 
-    // --- SET CAMERAS
     // Position and Forward for the first camera
     glm::vec3 pos0  = {-68.23f, -0.035f, -105.23f};
     glm::vec3 for0  = {0.482f, -0.077f, 0.872f};
@@ -1458,35 +1448,22 @@ int main()
     glm::vec3 pos2  = {9.84f, 2.75f, -10.66f};
     glm::vec3 for2  = {-0.67f, 0.10f, 0.73f};
 
-    // --- Add the cameras
+    // Add cameras and initialize first one
     // Initialize first camera
     app.initCamera(pos0, for0, false);
-    // Add second camera
     app.addCamera(pos1, for1, true);
-    // Add third camera
     app.addCamera(pos2, for2, true);
-    // Add fourth camera
     app.addCamera(pos0, for0, true);
 
-    // --- Add the lights
+    // lights
 	app.addLight(
 		Light(
-			glm::vec3(1.0f, 1.0f, 1.0f), // colour
+			glm::vec3(1.0f, 1.0f, 1.0f), 
 			//glm::vec3(-68.61f, 135.0f, -81.0f),
 			glm::vec3(0.0f, 30.0f, 0.0f), 
-			glm::vec3(-0.3f, -0.67f, 0.67f) // forward
+			glm::vec3(-0.3f, -0.67f, 0.67f) 
 	)
     );
-
-    /*app.addLight(
-	Light(
-	    glm::vec3(0.0f, 0.5f, 0.5f),   // white light
-	    glm::vec3(100.0f, 50.0f, 120.0f),   // position above and in front
-	    glm::vec3(0.0f, -5.0f, -5.0f)  // direction downward/forward
-	)
-    );
-	*/
-
 
     // App start
     app.startLoop();

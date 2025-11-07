@@ -16,6 +16,8 @@ layout(std140) uniform Material
 uniform int showNormals;
 uniform sampler2D colorMap;
 uniform sampler2D textureMap;
+uniform sampler2D normalMap;
+uniform int useNormalMapping;
 
 // Shadow mapping
 uniform sampler2D shadowMap;
@@ -41,6 +43,8 @@ uniform float reflectivity;
 in vec3 fragPosition; 
 in vec3 fragNormal;
 in vec2 fragTexCoord;
+in vec3 fragTangent;
+in vec3 fragBitangent;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -103,9 +107,28 @@ void main()
     }
     */
     
-
-
-    vec3 N = normalize(fragNormal);
+    // Sample normal from normal map and apply normal mapping
+    vec3 N;
+    if (useNormalMapping == 1) {
+        // Repeat the normal map texture coordinates
+        vec2 repeatedTexCoord = fragTexCoord * 10.0; // Adjust repetition factor as needed
+        
+        // Sample normal map
+        vec3 normalMapSample = texture(normalMap, repeatedTexCoord).rgb;
+        // Transform from [0,1] to [-1,1]
+        normalMapSample = normalMapSample * 2.0 - 1.0;
+        
+        // Construct TBN matrix
+        vec3 T = normalize(fragTangent);
+        vec3 B = normalize(fragBitangent);
+        vec3 Nbase = normalize(fragNormal);
+        mat3 TBN = mat3(T, B, Nbase);
+        
+        // Transform normal from tangent space to world space
+        N = normalize(TBN * normalMapSample);
+    } else {
+        N = normalize(fragNormal);
+    }
     vec3 L = normalize(
         isSpot == 1 ? 
         lightPosition - fragPosition : 

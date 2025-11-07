@@ -48,6 +48,7 @@ public:
         , m_butterfly_texture0(RESOURCE_ROOT "resources/wing-texture0.png")
         , m_butterfly_body_texture(RESOURCE_ROOT "resources/body-texture.png")
         , m_chunk_texture(RESOURCE_ROOT "resources/chunk-texture.png")
+        , m_chunk_normal(RESOURCE_ROOT "resources/chunk-normal.png")
     { // Initialize the application
         m_window.registerKeyCallback([this](int key, int scancode, int action, int mods) {
             if (action == GLFW_PRESS)
@@ -621,6 +622,8 @@ public:
 		chunk_tiles = tmp_tiles*2;
 	    
 	    ImGui::InputFloat("Chunk Y-Axis Offset", &chunk_y);
+
+	    ImGui::Checkbox("Chunk Normal Maps", &m_useNormalMapping);
 	}
 
 	if (ImGui::CollapsingHeader("Rendering Settings"))
@@ -1073,6 +1076,11 @@ public:
 	m_chunk_texture.bind(GL_TEXTURE3);
 	glUniform1i(m_chunkShader.getUniformLocation("textureMap"), 3);
 
+	m_chunk_normal.bind(GL_TEXTURE6);
+	glUniform1i(m_chunkShader.getUniformLocation("normalMap"), 6);
+
+	glUniform1i(m_chunkShader.getUniformLocation("useNormalMapping"), m_useNormalMapping ? 1 : 0);
+
 	glUniformMatrix4fv(m_chunkShader.getUniformLocation("lightSpaceMatrix"), 1, GL_FALSE,
 			   glm::value_ptr(m_lightSpaceMatrix));
 
@@ -1380,6 +1388,7 @@ private:
     Texture m_butterfly_body_texture;
     Texture m_texture;
     Texture m_chunk_texture;
+    Texture m_chunk_normal;
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_butterflyMatrix0 { 1.0f };
@@ -1404,12 +1413,13 @@ private:
     const int SHADOW_HEIGHT = 2048;
     glm::mat4 m_lightSpaceMatrix;
     bool shadows = true;
-	bool showNormals = false;
+    bool showNormals = false;
 
     // --- Environment mapping!
     GLuint m_environmentMap;
     bool m_useEnvironmentMapping { true };
     float m_reflectivity { 0.5f };
+    bool m_useNormalMapping { true };
 
     // Skybox resources
     GLuint m_skyboxVAO;
@@ -1421,7 +1431,6 @@ private:
     glm::vec3 kd = glm::vec3(0.5f);
     glm::vec3 ks = glm::vec3(0.5f);
     float shininess = 3.0f;
-
 
     //PBR
     bool m_PBR = true;

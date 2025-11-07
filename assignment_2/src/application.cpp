@@ -22,6 +22,7 @@ DISABLE_WARNINGS_POP()
 #include <functional>
 #include <iostream>
 #include <vector>
+#include <stb/stb_image.h>
 
 // 1 if DEBUG
 // 0 if NOT DEBUG
@@ -80,9 +81,9 @@ public:
             ShaderBuilder shadowBuilder;
             shadowBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shadow_vert.glsl");
             shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shadow_frag.glsl");
-            m_shadowShader = shadowBuilder.build();
+            m_shadowShader = shadowBuilder.build();            
 
-            // Any new shaders can be added below in similar fashion.
+	    // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
             //     VS Code: ctrl + shift + p => CMake: Configure => enter
@@ -94,60 +95,119 @@ public:
 	// Load the textures!
 	initShadowMapping();	
 	initEnvironmentMap();
+	initSkybox();
     }
 
     void initEnvironmentMap()
     {
-        glGenTextures(1, &m_environmentMap);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
+	glGenTextures(1, &m_environmentMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
 
-        // You'll need 6 images for a cubemap (right, left, top, bottom, front, back)
-        // For now, let's create a simple procedural cubemap or use placeholder colors
-        std::vector<std::string> faces = {
-            RESOURCE_ROOT "resources/skybox/right.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_X
-            RESOURCE_ROOT "resources/skybox/left.png",    // GL_TEXTURE_CUBE_MAP_NEGATIVE_X
-            RESOURCE_ROOT "resources/skybox/top.png",     // GL_TEXTURE_CUBE_MAP_POSITIVE_Y
-            RESOURCE_ROOT "resources/skybox/bottom.png",  // GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
-            RESOURCE_ROOT "resources/skybox/front.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_Z
-            RESOURCE_ROOT "resources/skybox/back.png"     // GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
-        };
+	// Skybox face paths
+	std::vector<std::string> faces = {
+	    RESOURCE_ROOT "resources/skybox/right.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_X
+	    RESOURCE_ROOT "resources/skybox/left.png",    // GL_TEXTURE_CUBE_MAP_NEGATIVE_X
+	    RESOURCE_ROOT "resources/skybox/top.png",     // GL_TEXTURE_CUBE_MAP_POSITIVE_Y
+	    RESOURCE_ROOT "resources/skybox/bottom.png",  // GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
+	    RESOURCE_ROOT "resources/skybox/front.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_Z
+	    RESOURCE_ROOT "resources/skybox/back.png"     // GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
+	};
 
-        // Try to load actual images
-        for (unsigned int i = 0; i < faces.size(); i++)
-        {
-            // Use stb_image to load (you might need to add this)
-            // For now, create a simple colored cubemap
-            int width = 512, height = 512;
-            std::vector<unsigned char> data(width * height * 3);
-            
-            // Create simple gradient colors for each face
-            glm::vec3 colors[] = {
-                glm::vec3(0.5f, 0.7f, 1.0f), // right - light blue
-                glm::vec3(0.3f, 0.5f, 0.9f), // left - darker blue
-                glm::vec3(0.7f, 0.8f, 1.0f), // top - bright blue (sky)
-                glm::vec3(0.2f, 0.3f, 0.2f), // bottom - dark green (ground)
-                glm::vec3(0.4f, 0.6f, 0.95f), // front - blue
-                glm::vec3(0.4f, 0.6f, 0.95f)  // back - blue
-            };
-            
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    int idx = (y * width + x) * 3;
-                    data[idx + 0] = (unsigned char)(colors[i].r * 255);
-                    data[idx + 1] = (unsigned char)(colors[i].g * 255);
-                    data[idx + 2] = (unsigned char)(colors[i].b * 255);
-                }
-            }
-            
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 
-                         0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data.data());
-        }
+	// Load each face
+	for (unsigned int i = 0; i < faces.size(); i++)
+	{
+	    // Use the Texture class to load the image
+	    try {
+		Texture tempTex(faces[i]);
+		
+		// Get image data from the texture
+		// Note: You'll need to access the texture's internal data
+		// For now, we'll load using stb_image directly
+		
+		int width, height, nrChannels;
+		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+		
+		if (data)
+		{
+		    GLenum format = GL_RGB;
+		    if (nrChannels == 1)
+			format = GL_RED;
+		    else if (nrChannels == 3)
+			format = GL_RGB;
+		    else if (nrChannels == 4)
+			format = GL_RGBA;
+		    
+		    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 
+				 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+		    
+		    stbi_image_free(data);
+		    std::cout << "Loaded cubemap face: " << faces[i] << std::endl;
+		}
+		else
+		{
+		    std::cerr << "Failed to load cubemap face: " << faces[i] << std::endl;
+		    stbi_image_free(data);
+		}
+	    }
+	    catch (const std::exception& e) {
+		std::cerr << "Error loading cubemap face " << faces[i] << ": " << e.what() << std::endl;
+	    }
+	}
 
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	// Set cubemap texture parameters
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	
+	std::cout << "Cubemap initialized successfully!" << std::endl;
+    }
+
+    void initSkybox()
+    {
+
+	// --- Create Skybox VAO/VBO ---
+	float skyboxVertices[] = {
+	    -1.0f,  1.0f, -1.0f,  -1.0f, -1.0f, -1.0f,   1.0f, -1.0f, -1.0f,
+	     1.0f, -1.0f, -1.0f,   1.0f,  1.0f, -1.0f,  -1.0f,  1.0f, -1.0f,
+
+	    -1.0f, -1.0f,  1.0f,  -1.0f, -1.0f, -1.0f,  -1.0f,  1.0f, -1.0f,
+	    -1.0f,  1.0f, -1.0f,  -1.0f,  1.0f,  1.0f,  -1.0f, -1.0f,  1.0f,
+
+	     1.0f, -1.0f, -1.0f,   1.0f, -1.0f,  1.0f,   1.0f,  1.0f,  1.0f,
+	     1.0f,  1.0f,  1.0f,   1.0f,  1.0f, -1.0f,   1.0f, -1.0f, -1.0f,
+
+	    -1.0f, -1.0f,  1.0f,  -1.0f,  1.0f,  1.0f,   1.0f,  1.0f,  1.0f,
+	     1.0f,  1.0f,  1.0f,   1.0f, -1.0f,  1.0f,  -1.0f, -1.0f,  1.0f,
+
+	    -1.0f,  1.0f, -1.0f,   1.0f,  1.0f, -1.0f,   1.0f,  1.0f,  1.0f,
+	     1.0f,  1.0f,  1.0f,  -1.0f,  1.0f,  1.0f,  -1.0f,  1.0f, -1.0f,
+
+	    -1.0f, -1.0f, -1.0f,  -1.0f, -1.0f,  1.0f,   1.0f, -1.0f, -1.0f,
+	     1.0f, -1.0f, -1.0f,  -1.0f, -1.0f,  1.0f,   1.0f, -1.0f,  1.0f
+	};
+
+	glGenVertexArrays(1, &m_skyboxVAO);
+	glGenBuffers(1, &m_skyboxVBO);
+	glBindVertexArray(m_skyboxVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, m_skyboxVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glBindVertexArray(0);
+
+	// --- Load Skybox Shader ---
+	//m_skyboxShader.bind();
+	//glActiveTexture(GL_TEXTURE5);
+	//glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
+	//glUniform1i(m_skyboxShader.getUniformLocation("skybox"), 5);
+	
+	ShaderBuilder skyboxBuilder;
+	skyboxBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl");
+	skyboxBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
+	m_skyboxShader = skyboxBuilder.build();
+
     }
 
     void initShadowMapping()
@@ -532,10 +592,15 @@ public:
 	
 	if (ImGui::CollapsingHeader("Chunk Properties"))
 	{
+	    int tmp_height = max_hill_height;
 	    ImGui::Text("Update Chunks after changing the variables below:");
 	    ImGui::InputInt("Chunk Seed", &chunk_seed);
 	    ImGui::InputInt("Chunk Hills", &chunk_hills);
-	    ImGui::InputInt("Max Hill Height", &max_hill_height);
+	    ImGui::InputInt("Max Hill Height", &tmp_height);
+
+	    if (tmp_height > 0)
+		max_hill_height = tmp_height;
+
 	    ImGui::InputInt("Chunk Size", &chunk_size);
 	    //ImGui::SliderFloat("Chunk Scale", &chunk_scale, 0.1f, 100.0f);
 	    ImGui::SliderFloat("Bezier Hill Steepness", &hill_steepness, 0.0f, 3.0f);
@@ -551,7 +616,10 @@ public:
 	    ImGui::Separator();
 	    ImGui::Text("Variables below can be changed live:");
 	    ImGui::InputInt("Chunk Tiles", &tmp_tiles);
-	    chunk_tiles = tmp_tiles*2;
+	    
+	    if (tmp_tiles > 0)
+		chunk_tiles = tmp_tiles*2;
+	    
 	    ImGui::InputFloat("Chunk Y-Axis Offset", &chunk_y);
 	}
 
@@ -988,7 +1056,7 @@ public:
 	glUniform1f(m_chunkShader.getUniformLocation("reflectivity"), m_reflectivity);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
-	glUniform1i(m_chunkShader.getUniformLocation("environmentMap"), 5); \
+	glUniform1i(m_chunkShader.getUniformLocation("environmentMap"), 5);
 	glUniform1i(m_chunkShader.getUniformLocation("showNormals"), showNormals);
 
 
@@ -1069,6 +1137,37 @@ public:
 	    const glm::mat4 viewMatrix = cameras[camera_idx].viewMatrix(); // includes camera position and rotation
 	    const glm::mat4 viewProjMatrix = projectionMatrix * viewMatrix;
 
+	    if (m_useEnvironmentMapping && m_environmentMap)
+	    {
+		// Make sure depth test lets the skybox appear behind everything
+		glDepthFunc(GL_LEQUAL);
+
+		m_skyboxShader.bind();
+
+		// Remove translation from the view matrix so the skybox stays centered
+		glm::mat4 viewNoTranslation = glm::mat4(glm::mat3(viewMatrix));
+
+		glUniformMatrix4fv(m_skyboxShader.getUniformLocation("view"), 1, GL_FALSE,
+				   glm::value_ptr(viewNoTranslation));
+		glUniformMatrix4fv(m_skyboxShader.getUniformLocation("projection"), 1, GL_FALSE,
+				   glm::value_ptr(projectionMatrix));
+
+		// Bind the cube VAO
+		glBindVertexArray(m_skyboxVAO);
+
+		// Bind the same environment cubemap texture
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, m_environmentMap);
+		glUniform1i(m_skyboxShader.getUniformLocation("skybox"), 5);
+
+		// Finally draw the cube!
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glBindVertexArray(0);
+		glDepthFunc(GL_LESS);
+	    }
+
+
 	    // Update butterflies
 	    m_butterflyMatrix0 = update_butterflyMatrix(m_butterflyMatrix0, m_butterflyOffset0, true);
 	    m_butterflyMatrix1 = update_butterflyMatrix(m_butterflyMatrix1, m_butterflyOffset1, false);
@@ -1080,8 +1179,8 @@ public:
 	    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	    // Clear the screen
-	    glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
-	    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	    //glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
+	    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	    // --- Render everything!
 	    float chunkWorldSize = (chunk_size - 1) * chunk_scale; // Total size of chunks
@@ -1312,18 +1411,23 @@ private:
     bool m_useEnvironmentMapping { false };
     float m_reflectivity { 0.5f };
 
-	//BlinnPhong
-	bool m_blinnPhong = false;
-	glm::vec3 kd = glm::vec3(0.5f);
-	glm::vec3 ks = glm::vec3(0.5f);
-	float shininess = 3.0f;
+    // Skybox resources
+    GLuint m_skyboxVAO;
+    GLuint m_skyboxVBO;
+    Shader m_skyboxShader; // Assuming you have a Shader class wrapper
+    
+    //BlinnPhong
+    bool m_blinnPhong = false;
+    glm::vec3 kd = glm::vec3(0.5f);
+    glm::vec3 ks = glm::vec3(0.5f);
+    float shininess = 3.0f;
 
 
-	//PBR
-	bool m_PBR = true;
-	float metallic = 0.0;
-	float roughness = 0.4;
-	glm::vec3 kdPBR = glm::vec3(1.0f);
+    //PBR
+    bool m_PBR = true;
+    float metallic = 0.0;
+    float roughness = 0.4;
+    glm::vec3 kdPBR = glm::vec3(1.0f);
 
 };
 

@@ -558,9 +558,20 @@ public:
 	if (ImGui::CollapsingHeader("Rendering Settings"))
 	{
 		ImGui::Checkbox("Show Normals", &showNormals);
-	    ImGui::Checkbox("PBR Shading", &m_useMaterial);
+		ImGui::Separator();
+
+		ImGui::Checkbox("BlinnPhong", &m_blinnPhong);
+		ImGui::ColorEdit3("Kd (diffuse)", glm::value_ptr(kd));
+		ImGui::ColorEdit3("Ks (specular)", glm::value_ptr(ks));
+		ImGui::SliderFloat("Shininess", &shininess, 1.0f, 128.0f);
+		ImGui::Separator();
+
+	    ImGui::Checkbox("PBR Shading", &m_PBR);
 		ImGui::SliderFloat("Metallic", &metallic, 0.0f, 1.0f);
 		ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
+		ImGui::ColorEdit3("Kd", glm::value_ptr(kdPBR));
+		ImGui::Separator();
+
 	    ImGui::Checkbox("Enable Shadows", &shadows);
 	    ImGui::Checkbox("Enable Environment Mapping", &m_useEnvironmentMapping);
 	    if (m_useEnvironmentMapping) {
@@ -625,10 +636,21 @@ public:
 
 	m_butterflyShader.bind();
 	glUniform3fv(m_butterflyShader.getUniformLocation("cameraPosition"), 1, glm::value_ptr(cameras[camera_idx].cameraPos()));
-	glUniform1f(m_butterflyShader.getUniformLocation("metallic"), 0.2f);
-	glUniform1f(m_butterflyShader.getUniformLocation("roughness"), 0.5f);
 	glUniform1i(m_butterflyShader.getUniformLocation("isShadow"), shadows);
 	glUniform1i(m_butterflyShader.getUniformLocation("showNormals"), showNormals);
+
+	//BlinnPhong uniforms
+	glUniform1i(m_butterflyShader.getUniformLocation("use_blinnPhong"), m_blinnPhong);
+	glUniform3fv(m_butterflyShader.getUniformLocation("kd"), 1, glm::value_ptr(kd));
+	glUniform3fv(m_butterflyShader.getUniformLocation("ks"), 1, glm::value_ptr(ks));
+	glUniform1f(m_butterflyShader.getUniformLocation("shininess"), shininess);
+
+
+	//PBR Uniforms
+	glUniform1i(m_butterflyShader.getUniformLocation("usePBR"), m_PBR);
+	glUniform1f(m_butterflyShader.getUniformLocation("metallic"), metallic);
+	glUniform1f(m_butterflyShader.getUniformLocation("roughness"), roughness);
+	glUniform3fv(m_butterflyShader.getUniformLocation("kdPBR"), 1, glm::value_ptr(kdPBR));
 
 	// Environment mapping uniforms
 	glUniform1i(m_butterflyShader.getUniformLocation("useEnvironmentMapping"), m_useEnvironmentMapping ? 1 : 0);
@@ -685,11 +707,11 @@ public:
 	    {
 		m_texture.bind(GL_TEXTURE0);
 		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
-		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
+		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
 	    }
 	    else 
 	    {
-		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
+		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
 	    mesh.draw(m_butterflyShader);
 
@@ -734,11 +756,11 @@ public:
 	    {
 		m_texture.bind(GL_TEXTURE0);
 		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
-		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
+		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
 	    }
 	    else 
 	    {
-		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
+		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
 	    mesh.draw(m_butterflyShader);
 	}
@@ -782,11 +804,11 @@ public:
 	    {
 		m_texture.bind(GL_TEXTURE0);
 		glUniform1i(m_butterflyShader.getUniformLocation("colorMap"), 0);
-		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
+		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), GL_FALSE);
 	    }
 	    else
 	    {
-		glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
+		//glUniform1i(m_butterflyShader.getUniformLocation("useMaterial"), m_useMaterial);
 	    }
 	    mesh.draw(m_butterflyShader);
 	}  
@@ -1304,9 +1326,18 @@ private:
     bool m_useEnvironmentMapping { false };
     float m_reflectivity { 0.5f };
 
+	//BlinnPhong
+	bool m_blinnPhong = false;
+	glm::vec3 kd = glm::vec3(0.5f);
+	glm::vec3 ks = glm::vec3(0.5f);
+	float shininess = 3.0f;
+
+
 	//PBR
-	float metallic = 0.3;
-	float roughness = 0.5;
+	bool m_PBR = true;
+	float metallic = 0.0;
+	float roughness = 0.4;
+	glm::vec3 kdPBR = glm::vec3(1.0f);
 
 };
 
